@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futures-io = "0.3.30"
-hyper = { version = "1.4.1", features = ["client"] }
+futures-io = "0.3"
+hyper = { version = "1.4", features = ["client", "http1"] }
 url = "2.5"

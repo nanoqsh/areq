@@ -10,7 +10,11 @@ use {
     },
 };
 
-struct Io<I>(I);
+/// Async IO trait alias.
+pub trait AsyncIo: AsyncRead + AsyncWrite + Unpin {}
+impl<I> AsyncIo for I where I: AsyncRead + AsyncWrite + Unpin {}
+
+pub(crate) struct Io<I>(pub(crate) I);
 
 impl<I> rt::Read for Io<I>
 where
