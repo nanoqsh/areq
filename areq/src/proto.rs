@@ -1,16 +1,24 @@
 use {
     crate::io::AsyncIo,
     std::{error, fmt, future::Future, io},
+    url::Host,
 };
+
+/// Represents a communication session between a client and a host.
+pub struct Session<I> {
+    pub io: I,
+    pub host: Host,
+    pub port: u16,
+}
 
 /// Used HTTP protocol.
 pub trait Protocol {
+    type Conn;
+
     const SECURITY: Security;
 
-    type Connection;
-
-    #[allow(async_fn_in_trait)]
-    async fn connect<'ex, S, I>(&self, spawn: &S, io: I) -> Result<Self::Connection, Error>
+    #[expect(async_fn_in_trait)]
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Self::Conn, Error>
     where
         S: Spawn<'ex>,
         I: AsyncIo + Send + 'ex;
@@ -63,6 +71,17 @@ pub enum Security {
 }
 
 impl Security {
+    pub const fn default_port(self) -> u16 {
+        const HTTP: u16 = 80;
+        const HTTPS: u16 = 443;
+
+        match self {
+            Self::No => HTTP,
+            Self::Yes { .. } => HTTPS,
+        }
+    }
+
+    #[expect(dead_code)]
     const fn alpn(self) -> &'static [&'static str] {
         match self {
             Self::No => panic!("this protocol must be secure"),
@@ -75,7 +94,7 @@ impl Security {
 pub trait Task<'ex>: Future<Output = ()> + Send + 'ex {}
 impl<'ex, F> Task<'ex> for F where F: Future<Output = ()> + Send + 'ex {}
 
-/// Trait for a task spawner.
+/// Trait for a [task](Task) spawner.
 pub trait Spawn<'ex> {
     fn spawn<T>(&self, task: T)
     where

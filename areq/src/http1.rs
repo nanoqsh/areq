@@ -1,10 +1,11 @@
 use {
     crate::{
         io::{AsyncIo, Io},
-        proto::{Error, Protocol, Security, Spawn},
+        proto::{Error, Protocol, Security, Session, Spawn},
     },
+    http::{header, HeaderValue, Method, Request, Version},
     hyper::{
-        body::{Body, Frame, SizeHint},
+        body::{Body, Frame, Incoming, SizeHint},
         client::conn::http1,
     },
     std::{
@@ -18,41 +19,73 @@ use {
 pub struct Http1(());
 
 impl Http1 {
+    #[expect(dead_code)]
     const ALPN: &'static str = "http/1.1";
 
     pub fn new() -> Self {
         Self(())
     }
-
-    async fn connect<I>(io: I) -> Result<(Connection, Handle<I>), Error>
-    where
-        I: AsyncIo,
-    {
-        let (send, conn) = http1::handshake(Io(io)).await?;
-        Ok((Connection { send }, Handle(conn)))
-    }
 }
 
 impl Protocol for Http1 {
+    type Conn = Connection;
+
     const SECURITY: Security = Security::No;
 
-    type Connection = Connection;
-
-    async fn connect<'ex, S, I>(&self, spawn: &S, io: I) -> Result<Self::Connection, Error>
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Self::Conn, Error>
     where
         S: Spawn<'ex>,
         I: AsyncIo + Send + 'ex,
     {
-        let (conn, handle) = Self::connect(io).await?;
+        let (conn, handle) = {
+            let Session { io, host, port } = se;
+            let (send, conn) = http1::handshake(Io(io)).await?;
+
+            let host_string = if port == const { Self::SECURITY.default_port() } {
+                host.to_string()
+            } else {
+                format!("{host}:{port}")
+            };
+
+            let host_header = host_string.parse().map_err(|_| Error::InvalidHost)?;
+            (Connection { send, host_header }, Handle(conn))
+        };
+
         spawn.spawn(handle);
         Ok(conn)
     }
 }
 
 pub struct Connection {
-    #[allow(dead_code)]
     send: http1::SendRequest<Empty>,
+    host_header: HeaderValue,
 }
+
+impl Connection {
+    pub async fn get_request(&mut self, uri: &str) -> Result<Responce, Error> {
+        //  let uri = &url[Position::BeforePath..];
+
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri(uri)
+            .version(Version::HTTP_2)
+            .header(header::HOST, &self.host_header)
+            .header(header::ACCEPT, "*/*")
+            .body(Empty)
+            .expect("construct a valid request");
+
+        println!("request: {req:#?}");
+
+        self.send.ready().await?;
+        let res = self.send.send_request(req).await?;
+        println!("response: {res:#?}");
+
+        Ok(Responce(res))
+    }
+}
+
+#[derive(Debug)]
+pub struct Responce(#[expect(dead_code)] hyper::Response<Incoming>);
 
 struct Handle<I>(http1::Connection<Io<I>, Empty>)
 where
@@ -71,6 +104,7 @@ where
     }
 }
 
+#[derive(Debug)]
 struct Empty;
 
 impl Body for Empty {
