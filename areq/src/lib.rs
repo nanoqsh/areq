@@ -1,3 +1,4 @@
+mod body;
 mod conn;
 pub mod http1;
 mod io;

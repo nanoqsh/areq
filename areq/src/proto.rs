@@ -1,5 +1,6 @@
 use {
-    crate::io::AsyncIo,
+    crate::{body::Empty, conn::Connection, io::AsyncIo},
+    hyper::body::Incoming,
     std::{error, fmt, future::Future, io},
     url::Host,
 };
@@ -13,12 +14,16 @@ pub struct Session<I> {
 
 /// Used HTTP protocol.
 pub trait Protocol {
-    type Conn;
+    type Fetch: Fetch;
 
     const SECURITY: Security;
 
     #[expect(async_fn_in_trait)]
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Self::Conn, Error>
+    async fn connect<'ex, S, I>(
+        &self,
+        spawn: &S,
+        se: Session<I>,
+    ) -> Result<Connection<Self::Fetch>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncIo + Send + 'ex;
@@ -100,3 +105,14 @@ pub trait Spawn<'ex> {
     where
         T: Task<'ex>;
 }
+
+pub trait Fetch {
+    #[expect(async_fn_in_trait)]
+    async fn fetch(&mut self, req: Request) -> Result<Responce, Error>;
+}
+
+#[derive(Debug)]
+pub struct Request(pub(crate) hyper::Request<Empty>);
+
+#[derive(Debug)]
+pub struct Responce(#[expect(dead_code)] pub(crate) hyper::Response<Incoming>);

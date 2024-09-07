@@ -1,9 +1,9 @@
 use {
     crate::{
+        body::Empty,
         conn::Connection,
-        conn::Empty,
         io::{AsyncIo, Io},
-        proto::{Error, Protocol, Security, Session, Spawn},
+        proto::{Error, Fetch, Protocol, Request, Responce, Security, Session, Spawn},
     },
     hyper::client::conn::http1,
     std::{
@@ -25,11 +25,15 @@ impl Http1 {
 }
 
 impl Protocol for Http1 {
-    type Conn = Connection;
+    type Fetch = FetchHttp1;
 
     const SECURITY: Security = Security::No;
 
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Self::Conn, Error>
+    async fn connect<'ex, S, I>(
+        &self,
+        spawn: &S,
+        se: Session<I>,
+    ) -> Result<Connection<Self::Fetch>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncIo + Send + 'ex,
@@ -37,6 +41,7 @@ impl Protocol for Http1 {
         let (conn, handle) = {
             let Session { io, host, port } = se;
             let (send, conn) = http1::handshake(Io(io)).await?;
+            let fetch = FetchHttp1(send);
 
             let host_string = if port == const { Self::SECURITY.default_port() } {
                 host.to_string()
@@ -45,11 +50,21 @@ impl Protocol for Http1 {
             };
 
             let host_header = host_string.parse().map_err(|_| Error::InvalidHost)?;
-            (Connection { send, host_header }, Handle(conn))
+            (Connection { fetch, host_header }, Handle(conn))
         };
 
         spawn.spawn(handle);
         Ok(conn)
+    }
+}
+
+pub struct FetchHttp1(http1::SendRequest<Empty>);
+
+impl Fetch for FetchHttp1 {
+    async fn fetch(&mut self, req: Request) -> Result<Responce, Error> {
+        self.0.ready().await?;
+        let res = self.0.send_request(req.0).await?;
+        Ok(Responce(res))
     }
 }
 
