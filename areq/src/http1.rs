@@ -29,11 +29,7 @@ impl Protocol for Http1 {
 
     const SECURITY: Security = Security::No;
 
-    async fn connect<'ex, S, I>(
-        &self,
-        spawn: &S,
-        se: Session<I>,
-    ) -> Result<Connection<Self::Fetch>, Error>
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Connection<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncIo + Send + 'ex,
@@ -41,7 +37,7 @@ impl Protocol for Http1 {
         let (conn, handle) = {
             let Session { io, host, port } = se;
             let (send, conn) = http1::handshake(Io(io)).await?;
-            let fetch = FetchHttp1(send);
+            let fetch = FetchHttp1 { send };
 
             let host_string = if port == const { Self::SECURITY.default_port() } {
                 host.to_string()
@@ -58,12 +54,14 @@ impl Protocol for Http1 {
     }
 }
 
-pub struct FetchHttp1(http1::SendRequest<Empty>);
+pub struct FetchHttp1 {
+    send: http1::SendRequest<Empty>,
+}
 
 impl Fetch for FetchHttp1 {
     async fn fetch(&mut self, req: Request) -> Result<Responce, Error> {
-        self.0.ready().await?;
-        let res = self.0.send_request(req.0).await?;
+        self.send.ready().await?;
+        let res = self.send.send_request(req.0).await?;
         Ok(Responce(res))
     }
 }

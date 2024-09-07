@@ -23,7 +23,7 @@ pub trait Protocol {
         &self,
         spawn: &S,
         se: Session<I>,
-    ) -> Result<Connection<Self::Fetch>, Error>
+    ) -> Result<Connection<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncIo + Send + 'ex;
@@ -107,7 +107,6 @@ pub trait Spawn<'ex> {
 }
 
 pub trait Fetch {
-    #[expect(async_fn_in_trait)]
     async fn fetch(&mut self, req: Request) -> Result<Responce, Error>;
 }
 

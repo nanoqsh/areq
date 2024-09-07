@@ -2,20 +2,24 @@ use {
     crate::{
         body::Empty,
         proto::{Error, Fetch, Request, Responce},
+        Protocol,
     },
     http::{header, HeaderValue, Method, Version},
 };
 
-pub struct Connection<F> {
-    pub(crate) fetch: F,
+pub struct Connection<P>
+where
+    P: Protocol + ?Sized,
+{
+    pub(crate) fetch: P::Fetch,
     pub(crate) host_header: HeaderValue,
 }
 
-impl<F> Connection<F> {
-    pub async fn get_request(&mut self, uri: &str) -> Result<Responce, Error>
-    where
-        F: Fetch,
-    {
+impl<P> Connection<P>
+where
+    P: Protocol,
+{
+    pub async fn get_request(&mut self, uri: &str) -> Result<Responce, Error> {
         let req = hyper::Request::builder()
             .method(Method::GET)
             .uri(uri)
