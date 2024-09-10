@@ -6,8 +6,9 @@ mod proto;
 
 pub use {
     crate::{
+        conn::Connection,
         io::AsyncIo,
-        proto::{Error, Protocol, Security, Session, Spawn, Task},
+        proto::{Error, Protocol, Request, Responce, Security, Session, Spawn, Task},
     },
     url,
 };

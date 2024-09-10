@@ -1,6 +1,9 @@
 use {
     crate::{body::Empty, conn::Connection, io::AsyncIo},
-    hyper::body::Incoming,
+    hyper::{
+        body::Incoming,
+        http::{self, Method},
+    },
     std::{error, fmt, future::Future, io},
     url::Host,
 };
@@ -107,11 +110,43 @@ pub trait Spawn<'ex> {
 }
 
 pub trait Fetch {
+    fn prepare_request(&self, req: &mut Request);
     async fn fetch(&mut self, req: Request) -> Result<Responce, Error>;
 }
 
 #[derive(Debug)]
-pub struct Request(pub(crate) hyper::Request<Empty>);
+pub struct Request {
+    inner: http::Request<Empty>,
+}
+
+impl Request {
+    pub fn get(uri: &str) -> Self {
+        let inner = http::Request::builder()
+            .method(Method::GET)
+            .uri(uri)
+            .body(Empty)
+            .expect("construct a valid request");
+
+        Self { inner }
+    }
+
+    pub(crate) fn as_mut(&mut self) -> &mut http::Request<Empty> {
+        &mut self.inner
+    }
+
+    pub(crate) fn into_inner(self) -> http::Request<Empty> {
+        self.inner
+    }
+}
 
 #[derive(Debug)]
-pub struct Responce(#[expect(dead_code)] pub(crate) hyper::Response<Incoming>);
+pub struct Responce {
+    #[expect(dead_code)]
+    inner: http::Response<Incoming>,
+}
+
+impl Responce {
+    pub(crate) fn new(inner: http::Response<Incoming>) -> Self {
+        Self { inner }
+    }
+}
