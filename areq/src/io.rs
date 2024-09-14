@@ -47,9 +47,8 @@ where
         };
 
         let io = Pin::new(&mut self.0);
-        let n = match io.poll_read(cx, bytes) {
-            Poll::Ready(Ok(n)) => n,
-            Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+        let n = match io.poll_read(cx, bytes)? {
+            Poll::Ready(n) => n,
             Poll::Pending => return Poll::Pending,
         };
 
