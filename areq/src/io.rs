@@ -43,7 +43,7 @@ where
             let uninit = unsafe { buf.as_mut() };
 
             let len = usize::min(uninit.len(), MAX_BUF_SIZE);
-            fill(&mut uninit[len..], 0)
+            fill(&mut uninit[..len], 0)
         };
 
         let io = Pin::new(&mut self.0);
@@ -89,5 +89,61 @@ where
         bufs: &[IoSlice],
     ) -> Poll<Result<usize, Error>> {
         Pin::new(&mut self.0).poll_write_vectored(cx, bufs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn poll<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut Context) -> R,
+    {
+        use std::{
+            sync::Arc,
+            task::{Wake, Waker},
+        };
+
+        struct TestWaker;
+
+        impl Wake for TestWaker {
+            fn wake(self: Arc<Self>) {}
+        }
+
+        let waker = Waker::from(Arc::new(TestWaker));
+        f(&mut Context::from_waker(&waker))
+    }
+
+    #[test]
+    fn read() {
+        use {
+            hyper::rt::{Read, ReadBuf},
+            std::pin,
+        };
+
+        let mut raw = [const { MaybeUninit::uninit() }; 5];
+        let mut buf = ReadBuf::uninit(&mut raw);
+
+        let io = pin::pin!(Io(&b"hello"[..]));
+        let Poll::Ready(Ok(())) = poll(|cx| io.poll_read(cx, buf.unfilled())) else {
+            unreachable!()
+        };
+
+        assert_eq!(buf.filled(), b"hello");
+    }
+
+    #[test]
+    fn write() {
+        use {hyper::rt::Write, std::pin};
+
+        let mut buf = vec![];
+        let io = pin::pin!(Io(&mut buf));
+        let Poll::Ready(Ok(n)) = poll(|cx| io.poll_write(cx, b"hello")) else {
+            unreachable!()
+        };
+
+        assert_eq!(n, 5);
+        assert_eq!(buf, b"hello");
     }
 }
