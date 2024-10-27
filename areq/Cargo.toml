@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+areq-h1.path = "../../areq-h1/areq-h1"
 futures-io = "0.3"
-hyper = { version = "1.4", features = ["client", "http1"] }
+http = "1.1.0"
 url = "2.5"

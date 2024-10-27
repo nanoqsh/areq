@@ -1,9 +1,7 @@
 use {
-    crate::{body::Empty, conn::Connection, io::AsyncIo},
-    hyper::{
-        body::Incoming,
-        http::{self, Method},
-    },
+    crate::{conn::Connection, io::AsyncIo},
+    areq_h1::FetchBody,
+    http::Method,
     std::{error, fmt, future::Future, io},
     url::Host,
 };
@@ -36,19 +34,15 @@ pub trait Protocol {
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
-    Hyper(hyper::Error),
     InvalidHost,
 }
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<hyper::Error> for Error {
-    fn from(e: hyper::Error) -> Self {
-        Self::Hyper(e)
+impl<E> From<E> for Error
+where
+    E: Into<io::Error>,
+{
+    fn from(e: E) -> Self {
+        Self::Io(e.into())
     }
 }
 
@@ -56,7 +50,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Io(e) => write!(f, "io error: {e}"),
-            Self::Hyper(e) => write!(f, "hyper error: {e}"),
             Self::InvalidHost => write!(f, "invalid host"),
         }
     }
@@ -66,7 +59,6 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Self::Io(e) => Some(e),
-            Self::Hyper(e) => Some(e),
             Self::InvalidHost => None,
         }
     }
@@ -116,7 +108,7 @@ pub trait Fetch {
 
 #[derive(Debug)]
 pub struct Request {
-    inner: http::Request<Empty>,
+    inner: http::Request<()>,
 }
 
 impl Request {
@@ -124,17 +116,17 @@ impl Request {
         let inner = http::Request::builder()
             .method(Method::GET)
             .uri(uri)
-            .body(Empty)
+            .body(())
             .expect("construct a valid request");
 
         Self { inner }
     }
 
-    pub(crate) fn as_mut(&mut self) -> &mut http::Request<Empty> {
+    pub(crate) fn as_mut(&mut self) -> &mut http::Request<()> {
         &mut self.inner
     }
 
-    pub(crate) fn into_inner(self) -> http::Request<Empty> {
+    pub(crate) fn into_inner(self) -> http::Request<()> {
         self.inner
     }
 }
@@ -142,11 +134,11 @@ impl Request {
 #[derive(Debug)]
 pub struct Responce {
     #[expect(dead_code)]
-    inner: http::Response<Incoming>,
+    inner: http::Response<FetchBody>,
 }
 
 impl Responce {
-    pub(crate) fn new(inner: http::Response<Incoming>) -> Self {
+    pub(crate) fn new(inner: http::Response<FetchBody>) -> Self {
         Self { inner }
     }
 }
