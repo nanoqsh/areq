@@ -1,6 +1,7 @@
 use {
-    crate::{conn::Connection, io::AsyncIo},
+    crate::conn::Connection,
     areq_h1::FetchBody,
+    futures_io::{AsyncRead, AsyncWrite},
     http::Method,
     std::{error, fmt, future::Future, io},
     url::Host,
@@ -27,7 +28,7 @@ pub trait Protocol {
     ) -> Result<Connection<Self>, Error>
     where
         S: Spawn<'ex>,
-        I: AsyncIo + Send + 'ex;
+        I: AsyncRead + AsyncWrite + Send + 'ex;
 }
 
 /// The [protocol](Protocol) error type.

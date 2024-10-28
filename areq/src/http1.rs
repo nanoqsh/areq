@@ -1,10 +1,10 @@
 use {
     crate::{
         conn::Connection,
-        io::AsyncIo,
         proto::{Error, Fetch, Protocol, Request, Responce, Security, Session, Spawn},
     },
     areq_h1::{Builder, Requester},
+    futures_io::{AsyncRead, AsyncWrite},
     http::{header, HeaderValue, Version},
 };
 
@@ -23,7 +23,7 @@ impl Protocol for Http1 {
     async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Connection<Self>, Error>
     where
         S: Spawn<'ex>,
-        I: AsyncIo + Send + 'ex,
+        I: AsyncRead + AsyncWrite + Send + 'ex,
     {
         let Session { io, host, port } = se;
         let (reqs, conn) = Builder::default().handshake(io);
