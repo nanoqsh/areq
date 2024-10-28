@@ -1,10 +1,12 @@
 [package]
-name = "areq"
+name = "fetch"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 areq-h1.workspace = true
-futures-io.workspace = true
+async-io.workspace = true
+async-net.workspace = true
+futures-lite.workspace = true
 http.workspace = true
 url.workspace = true
