@@ -17,12 +17,13 @@ use {
     },
 };
 
-pub struct Builder {
+#[derive(Clone)]
+pub struct Config {
     parser: Parser,
     read_strategy: ReadStrategy,
 }
 
-impl Builder {
+impl Config {
     pub fn read_strategy(mut self, read_strategy: ReadStrategy) -> Self {
         self.read_strategy = read_strategy;
         self
@@ -57,7 +58,7 @@ impl Builder {
     }
 }
 
-impl Default for Builder {
+impl Default for Config {
     fn default() -> Self {
         Self {
             parser: Parser::new(),
@@ -225,7 +226,7 @@ mod tests {
         let mut write = vec![];
         let io = io::make(read, &mut write);
 
-        let (reqs, conn) = Builder::default().handshake(io);
+        let (reqs, conn) = Config::default().handshake(io);
         async_io::block_on(future::or(
             async {
                 conn.await;
@@ -296,7 +297,7 @@ mod tests {
         let mut write = vec![];
         let io = io::make(read, &mut write);
 
-        let (reqs, conn) = Builder::default().handshake(io);
+        let (reqs, conn) = Config::default().handshake(io);
         async_io::block_on(future::or(
             async {
                 conn.await;
@@ -332,7 +333,7 @@ mod tests {
         let read: &[u8] = &[];
         let write = vec![];
         let io = io::make(read, write);
-        let (reqs, conn): (Requester<&[u8]>, _) = Builder::default().handshake(io);
+        let (reqs, conn): (Requester<&[u8]>, _) = Config::default().handshake(io);
         assert_send(reqs);
         assert_send(conn);
     }

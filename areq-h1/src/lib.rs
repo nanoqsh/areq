@@ -8,7 +8,7 @@ mod headers;
 
 pub use crate::{
     body::{Body, Chunk, Chunked, Empty, Full},
-    client::{Builder, FetchBody, Requester},
+    client::{Config, FetchBody, Requester},
     error::Error,
     handler::ReadStrategy,
 };

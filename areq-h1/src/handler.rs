@@ -249,6 +249,7 @@ impl Strategy {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct Parser {
     conf: ParserConfig,
     max_headers: usize,

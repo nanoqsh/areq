@@ -7,7 +7,10 @@ use {
     http::{header, HeaderValue, Version},
 };
 
-pub struct Http1;
+#[derive(Default)]
+pub struct Http1 {
+    conf: areq_h1::Config,
+}
 
 impl Protocol for Http1 {
     type Fetch = FetchHttp1;
@@ -17,9 +20,7 @@ impl Protocol for Http1 {
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex,
     {
-        use areq_h1::Builder;
-
-        let (reqs, conn) = Builder::default().handshake(se.io);
+        let (reqs, conn) = self.conf.clone().handshake(se.io);
         let reqs = Requester {
             fetch: FetchHttp1 {
                 reqs,

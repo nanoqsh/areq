@@ -32,7 +32,7 @@ fn main() {
 
 async fn fetch(url: Url) -> Result<(), Error> {
     use {
-        areq_h1::Builder,
+        areq_h1::Config,
         async_net::TcpStream,
         futures_lite::future,
         http::{header, HeaderValue, Method, Request, Version},
@@ -42,7 +42,7 @@ async fn fetch(url: Url) -> Result<(), Error> {
     let port = url.port().unwrap_or(80);
     let tcp = TcpStream::connect((host, port)).await?;
 
-    let (reqs, conn) = Builder::default().handshake(tcp);
+    let (reqs, conn) = Config::default().handshake(tcp);
     let handle_io = async {
         // this future will only be complete when `reqs` is dropped
         conn.await;

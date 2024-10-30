@@ -43,9 +43,9 @@ fn serve() -> Result<(), Error> {
         tcp: TcpStream,
         payload: Vec<u32>,
     ) -> Result<Vec<u32>, Error> {
-        use areq_h1::{Builder, Full};
+        use areq_h1::{Config, Full};
 
-        let (reqs, conn) = Builder::default().handshake(tcp);
+        let (reqs, conn) = Config::default().handshake(tcp);
         ex.spawn(conn).detach();
 
         let mut out = vec![];
