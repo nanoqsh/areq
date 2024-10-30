@@ -1,31 +1,60 @@
 use {
-    crate::conn::Connection,
+    crate::conn::Requester,
     areq_h1::FetchBody,
     futures_io::{AsyncRead, AsyncWrite},
     http::Method,
-    std::{error, fmt, future::Future, io},
+    std::{borrow::Cow, error, fmt, future::Future, io},
     url::Host,
 };
 
-/// Represents a communication session between a client and a host.
+/// The communication session between a client and a host.
 pub struct Session<I> {
     pub io: I,
+    pub addr: Address,
+}
+
+/// The network address, which includes a host,
+/// a port and an indicator of security protocol.
+pub struct Address {
     pub host: Host,
     pub port: u16,
+    pub security: bool,
+}
+
+impl Address {
+    /// Returns a representation of the host and port based on the security protocol
+    pub fn repr(&self) -> Cow<str> {
+        if self.port == self.default_port() {
+            match &self.host {
+                Host::Domain(domain) => Cow::Borrowed(domain),
+                Host::Ipv4(ip) => Cow::Owned(ip.to_string()),
+                Host::Ipv6(ip) => Cow::Owned(ip.to_string()),
+            }
+        } else {
+            let host = &self.host;
+            let port = self.port;
+            Cow::Owned(format!("{host}:{port}"))
+        }
+    }
+
+    fn default_port(&self) -> u16 {
+        const HTTP: u16 = 80;
+        const HTTPS: u16 = 443;
+
+        if self.security {
+            HTTPS
+        } else {
+            HTTP
+        }
+    }
 }
 
 /// Used HTTP protocol.
-pub trait Protocol {
+pub trait Protocol: Sized {
     type Fetch: Fetch;
 
-    const SECURITY: Security;
-
     #[expect(async_fn_in_trait)]
-    async fn connect<'ex, S, I>(
-        &self,
-        spawn: &S,
-        se: Session<I>,
-    ) -> Result<Connection<Self>, Error>
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Requester<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex;
@@ -61,32 +90,6 @@ impl error::Error for Error {
         match self {
             Self::Io(e) => Some(e),
             Self::InvalidHost => None,
-        }
-    }
-}
-
-/// The property of a [protocol](Protocol) is it secure or not.
-pub enum Security {
-    No,
-    Yes { alpn: &'static [&'static str] },
-}
-
-impl Security {
-    pub const fn default_port(self) -> u16 {
-        const HTTP: u16 = 80;
-        const HTTPS: u16 = 443;
-
-        match self {
-            Self::No => HTTP,
-            Self::Yes { .. } => HTTPS,
-        }
-    }
-
-    #[expect(dead_code)]
-    const fn alpn(self) -> &'static [&'static str] {
-        match self {
-            Self::No => panic!("this protocol must be secure"),
-            Self::Yes { alpn } => alpn,
         }
     }
 }

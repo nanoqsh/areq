@@ -1,53 +1,39 @@
 use {
     crate::{
-        conn::Connection,
-        proto::{Error, Fetch, Protocol, Request, Responce, Security, Session, Spawn},
+        conn::Requester,
+        proto::{Error, Fetch, Protocol, Request, Responce, Session, Spawn},
     },
-    areq_h1::{Builder, Requester},
     futures_io::{AsyncRead, AsyncWrite},
     http::{header, HeaderValue, Version},
 };
 
 pub struct Http1;
 
-impl Http1 {
-    #[expect(dead_code)]
-    const ALPN: &'static str = "http/1.1";
-}
-
 impl Protocol for Http1 {
     type Fetch = FetchHttp1;
 
-    const SECURITY: Security = Security::No;
-
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Connection<Self>, Error>
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Requester<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex,
     {
-        let Session { io, host, port } = se;
-        let (reqs, conn) = Builder::default().handshake(io);
+        use areq_h1::Builder;
 
-        let host_string = if port == const { Self::SECURITY.default_port() } {
-            host.to_string()
-        } else {
-            format!("{host}:{port}")
-        };
-
-        let conn_http = Connection {
+        let (reqs, conn) = Builder::default().handshake(se.io);
+        let reqs = Requester {
             fetch: FetchHttp1 {
                 reqs,
-                host: host_string.parse().map_err(|_| Error::InvalidHost)?,
+                host: se.addr.repr().parse().map_err(|_| Error::InvalidHost)?,
             },
         };
 
         spawn.spawn(conn);
-        Ok(conn_http)
+        Ok(reqs)
     }
 }
 
 pub struct FetchHttp1 {
-    reqs: Requester<()>,
+    reqs: areq_h1::Requester<()>,
     host: HeaderValue,
 }
 

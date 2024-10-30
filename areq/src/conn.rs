@@ -3,14 +3,14 @@ use crate::{
     Protocol,
 };
 
-pub struct Connection<P>
+pub struct Requester<P>
 where
-    P: Protocol + ?Sized,
+    P: Protocol,
 {
     pub(crate) fetch: P::Fetch,
 }
 
-impl<P> Connection<P>
+impl<P> Requester<P>
 where
     P: Protocol,
 {

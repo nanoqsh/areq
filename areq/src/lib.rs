@@ -5,8 +5,8 @@ mod proto;
 
 pub use {
     crate::{
-        conn::Connection,
-        proto::{Error, Protocol, Request, Responce, Security, Session, Spawn, Task},
+        conn::Requester,
+        proto::{Address, Error, Protocol, Request, Responce, Session, Spawn, Task},
     },
     url,
 };
