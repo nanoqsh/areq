@@ -2,14 +2,12 @@ use {
     crate::{
         body::{Body, Chunk},
         error::Error,
-        fu::StreamExt as _,
         handler::{Handler, Parser, ReadStrategy},
         headers::{self, ContentLen},
     },
     async_channel::{Receiver, Sender},
     bytes::{Buf, Bytes},
-    futures_core::Stream,
-    futures_io::{AsyncRead, AsyncWrite},
+    futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     http::{header, HeaderValue, Request, Response},
     std::{
         fmt,

@@ -1,12 +1,8 @@
 use {
-    crate::{
-        bytes::InitBytesMut,
-        error::Error,
-        fu::{AsyncReadExt as _, AsyncWriteExt as _},
-    },
+    crate::{bytes::InitBytesMut, error::Error},
     bytes::Bytes,
     core::str,
-    futures_io::{AsyncRead, AsyncWrite},
+    futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     http::{Request, Response, Version},
     httparse::{Header, ParserConfig},
 };
@@ -150,7 +146,7 @@ impl<I> Handler<I> {
             _ = write!(buf, "{method} {uri} {version:?}\r\n");
             for (name, value) in req.headers() {
                 _ = write!(buf, "{name}: ");
-                _ = buf.write_all(value.as_bytes());
+                _ = Write::write_all(buf, value.as_bytes());
                 _ = write!(buf, "\r\n");
             }
 

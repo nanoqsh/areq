@@ -1,6 +1,6 @@
 use {
     bytes::Buf,
-    futures_core::Stream,
+    futures_lite::Stream,
     std::{
         marker::PhantomData,
         pin::Pin,

@@ -1,9 +1,8 @@
 use {
     crate::client::Client,
     bytes::Bytes,
-    futures_core::Stream,
-    futures_io::{AsyncRead, AsyncWrite},
-    http::Method,
+    futures_lite::{AsyncRead, AsyncWrite, Stream},
+    http::{response::Parts, Method},
     std::{borrow::Cow, error, fmt, future::Future, io},
     url::Host,
 };
@@ -140,4 +139,25 @@ impl Request {
 }
 
 #[derive(Debug)]
-pub struct Responce<B>(pub(crate) http::Response<B>);
+pub struct Responce<B> {
+    #[expect(dead_code)]
+    head: Parts,
+    body: B,
+}
+
+impl<B> Responce<B> {
+    pub fn new(res: http::Response<B>) -> Self {
+        let (head, body) = res.into_parts();
+        Self { head, body }
+    }
+
+    pub fn into_stream<E>(self) -> impl Stream<Item = Result<Bytes, Error>>
+    where
+        B: Stream<Item = Result<Bytes, E>>,
+        E: Into<Error>,
+    {
+        use futures_lite::StreamExt;
+
+        self.body.map(|res| res.map_err(E::into))
+    }
+}

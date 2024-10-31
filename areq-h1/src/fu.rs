@@ -1,58 +1,12 @@
-use {
-    futures_core::Stream,
-    futures_io::{AsyncRead, AsyncWrite},
-    std::{future, io::Error, pin::Pin},
-};
-
-pub(crate) trait StreamExt: Stream {
-    async fn next(&mut self) -> Option<Self::Item>;
-}
-
-impl<S> StreamExt for S
-where
-    S: Stream + Unpin,
-{
-    async fn next(&mut self) -> Option<Self::Item> {
-        future::poll_fn(|cx| Pin::new(&mut *self).poll_next(cx)).await
-    }
-}
-
-pub(crate) trait AsyncReadExt: AsyncRead {
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error>;
-}
-
-impl<R> AsyncReadExt for R
-where
-    R: AsyncRead + Unpin,
-{
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        future::poll_fn(|cx| Pin::new(&mut *self).poll_read(cx, buf)).await
-    }
-}
-
-pub(crate) trait AsyncWriteExt: AsyncWrite {
-    async fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
-    async fn flush(&mut self) -> Result<(), Error>;
-}
-
-impl<W> AsyncWriteExt for W
-where
-    W: AsyncWrite + Unpin,
-{
-    async fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        future::poll_fn(|cx| Pin::new(&mut *self).poll_write(cx, buf)).await
-    }
-
-    async fn flush(&mut self) -> Result<(), Error> {
-        future::poll_fn(|cx| Pin::new(&mut *self).poll_flush(cx)).await
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod parts {
     use {
-        super::*,
-        std::task::{Context, Poll},
+        futures_lite::{AsyncRead, AsyncReadExt},
+        std::{
+            io::Error,
+            pin::Pin,
+            task::{Context, Poll},
+        },
     };
 
     pub fn make<I>(reads: I) -> impl AsyncRead
@@ -120,8 +74,12 @@ pub(crate) mod parts {
 #[cfg(test)]
 pub(crate) mod io {
     use {
-        super::*,
-        std::task::{Context, Poll},
+        futures_lite::{AsyncRead, AsyncWrite},
+        std::{
+            io::Error,
+            pin::Pin,
+            task::{Context, Poll},
+        },
     };
 
     pub fn make<R, W>(read: R, write: W) -> impl AsyncRead + AsyncWrite

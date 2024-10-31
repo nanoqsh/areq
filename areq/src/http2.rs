@@ -3,8 +3,7 @@ use {
         client::Client, io::Io, proto::Fetch, Error, Protocol, Request, Responce, Session, Spawn,
     },
     bytes::Bytes,
-    futures_core::Stream,
-    futures_io::{AsyncRead, AsyncWrite},
+    futures_lite::{AsyncRead, AsyncWrite, Stream},
     h2::client,
     http::{header, HeaderValue, Version},
     std::{
@@ -78,7 +77,7 @@ impl Fetch for FetchHttp2 {
         _ = stream;
 
         let res = resfu.await.map_err(into_io_error)?;
-        Ok(Responce(res.map(BodyStream)))
+        Ok(Responce::new(res.map(BodyStream)))
     }
 }
 

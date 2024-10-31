@@ -4,7 +4,7 @@ use {
         proto::{Error, Fetch, Protocol, Request, Responce, Session, Spawn},
     },
     areq_h1::FetchBody,
-    futures_io::{AsyncRead, AsyncWrite},
+    futures_lite::{AsyncRead, AsyncWrite},
     http::{header, HeaderValue, Version},
 };
 
@@ -59,6 +59,6 @@ impl Fetch for FetchHttp1 {
 
     async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error> {
         let res = self.reqs.send(req.into_inner()).await?;
-        Ok(Responce(res.map(FetchBody::into_stream)))
+        Ok(Responce::new(res.map(FetchBody::into_stream)))
     }
 }
