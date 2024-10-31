@@ -1,8 +1,9 @@
 use {
     crate::{
-        conn::Requester,
+        client::Client,
         proto::{Error, Fetch, Protocol, Request, Responce, Session, Spawn},
     },
+    areq_h1::FetchBody,
     futures_io::{AsyncRead, AsyncWrite},
     http::{header, HeaderValue, Version},
 };
@@ -14,19 +15,19 @@ pub struct Http1 {
 
 impl Protocol for Http1 {
     type Fetch = FetchHttp1;
+    type Body = <FetchHttp1 as Fetch>::Body;
 
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Requester<Self>, Error>
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex,
     {
-        let (reqs, conn) = self.conf.clone().handshake(se.io);
-        let reqs = Requester {
-            fetch: FetchHttp1 {
-                reqs,
-                host: se.addr.repr().parse().map_err(|_| Error::InvalidHost)?,
-            },
-        };
+        let Session { io, addr } = se;
+        let (reqs, conn) = self.conf.clone().handshake(io);
+        let reqs = Client(FetchHttp1 {
+            reqs,
+            host: addr.repr().parse().map_err(|_| Error::InvalidHost)?,
+        });
 
         spawn.spawn(conn);
         Ok(reqs)
@@ -39,6 +40,9 @@ pub struct FetchHttp1 {
 }
 
 impl Fetch for FetchHttp1 {
+    type Error = areq_h1::Error;
+    type Body = areq_h1::BodyStream;
+
     fn prepare_request(&self, req: &mut Request) {
         let req = req.as_mut();
         *req.version_mut() = Version::HTTP_11;
@@ -53,8 +57,8 @@ impl Fetch for FetchHttp1 {
             .or_insert(default_accept);
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Responce, Error> {
+    async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error> {
         let res = self.reqs.send(req.into_inner()).await?;
-        Ok(Responce::new(res))
+        Ok(Responce(res.map(FetchBody::into_stream)))
     }
 }

@@ -5,6 +5,10 @@ edition = "2021"
 
 [dependencies]
 areq-h1.workspace = true
+bytes.workspace = true
+futures-core.workspace = true
 futures-io.workspace = true
+h2 = "0.4.6"
 http.workspace = true
+tokio = "1.41.0"
 url.workspace = true

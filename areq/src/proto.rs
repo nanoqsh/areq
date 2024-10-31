@@ -1,6 +1,7 @@
 use {
-    crate::conn::Requester,
-    areq_h1::FetchBody,
+    crate::client::Client,
+    bytes::Bytes,
+    futures_core::Stream,
     futures_io::{AsyncRead, AsyncWrite},
     http::Method,
     std::{borrow::Cow, error, fmt, future::Future, io},
@@ -13,8 +14,7 @@ pub struct Session<I> {
     pub addr: Address,
 }
 
-/// The network address, which includes a host,
-/// a port and an indicator of security protocol.
+/// The network address.
 pub struct Address {
     pub host: Host,
     pub port: u16,
@@ -51,10 +51,11 @@ impl Address {
 
 /// Used HTTP protocol.
 pub trait Protocol: Sized {
-    type Fetch: Fetch;
+    type Fetch: Fetch<Body = Self::Body>;
+    type Body;
 
     #[expect(async_fn_in_trait)]
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Requester<Self>, Error>
+    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex;
@@ -106,14 +107,17 @@ pub trait Spawn<'ex> {
 }
 
 pub trait Fetch {
+    type Error: Into<Error>;
+    type Body: Stream<Item = Result<Bytes, Self::Error>>;
+
     fn prepare_request(&self, req: &mut Request);
-    async fn fetch(&mut self, req: Request) -> Result<Responce, Error>;
+
+    #[expect(async_fn_in_trait)]
+    async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error>;
 }
 
 #[derive(Debug)]
-pub struct Request {
-    inner: http::Request<()>,
-}
+pub struct Request(http::Request<()>);
 
 impl Request {
     pub fn get(uri: &str) -> Self {
@@ -123,26 +127,17 @@ impl Request {
             .body(())
             .expect("construct a valid request");
 
-        Self { inner }
+        Self(inner)
     }
 
     pub(crate) fn as_mut(&mut self) -> &mut http::Request<()> {
-        &mut self.inner
+        &mut self.0
     }
 
     pub(crate) fn into_inner(self) -> http::Request<()> {
-        self.inner
+        self.0
     }
 }
 
 #[derive(Debug)]
-pub struct Responce {
-    #[expect(dead_code)]
-    inner: http::Response<FetchBody>,
-}
-
-impl Responce {
-    pub(crate) fn new(inner: http::Response<FetchBody>) -> Self {
-        Self { inner }
-    }
-}
+pub struct Responce<B>(pub(crate) http::Response<B>);

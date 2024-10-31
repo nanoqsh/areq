@@ -8,12 +8,14 @@ use {
     },
     async_channel::{Receiver, Sender},
     bytes::{Buf, Bytes},
+    futures_core::Stream,
     futures_io::{AsyncRead, AsyncWrite},
     http::{header, HeaderValue, Request, Response},
     std::{
         fmt,
         future::Future,
         pin::{self, Pin},
+        task::{Context, Poll},
     },
 };
 
@@ -187,11 +189,29 @@ impl FetchBody {
     pub async fn frame(&self) -> Result<Bytes, Error> {
         self.fetch.recv().await.map_err(|_| Error::Closed)?
     }
+
+    pub fn into_stream(self) -> BodyStream {
+        BodyStream(Box::pin(self.fetch))
+    }
 }
 
 impl fmt::Debug for FetchBody {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("FetchBody").finish()
+    }
+}
+
+pub struct BodyStream(Pin<Box<Receiver<Result<Bytes, Error>>>>);
+
+impl Stream for BodyStream {
+    type Item = Result<Bytes, Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        match Pin::new(&mut self.0).poll_next(cx) {
+            Poll::Ready(Some(Ok(bytes))) if bytes.is_empty() => Poll::Ready(None),
+            Poll::Ready(o) => Poll::Ready(o),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 

@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 async-channel = "2.3.1"
-bytes = "1.7.2"
-futures-core = "0.3.31"
+bytes.workspace = true
+futures-core.workspace = true
 futures-io.workspace = true
 http.workspace = true
 httparse = "1.9.4"
