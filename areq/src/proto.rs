@@ -3,7 +3,14 @@ use {
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     http::{response::Parts, HeaderMap, Method, StatusCode, Version},
-    std::{borrow::Cow, error, fmt, future::Future, io, pin::Pin},
+    std::{
+        borrow::Cow,
+        error, fmt,
+        future::Future,
+        io,
+        pin::Pin,
+        task::{Context, Poll},
+    },
     url::Host,
 };
 
@@ -175,6 +182,16 @@ impl fmt::Debug for Decode {
     }
 }
 
+impl Stream for Decode {
+    type Item = Result<Bytes, Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        match self.get_mut() {
+            Self::Stream(s) => Pin::new(s).poll_next(cx),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Responce {
     head: Parts,
@@ -209,9 +226,7 @@ impl Responce {
     }
 
     pub fn body_stream(self) -> impl Stream<Item = Result<Bytes, Error>> {
-        match self.body {
-            Decode::Stream(s) => s,
-        }
+        self.body
     }
 
     pub fn body_reader(self) -> impl AsyncRead {
@@ -220,27 +235,12 @@ impl Responce {
             task::{Context, Poll},
         };
 
-        struct Reader<S> {
-            stream: S,
+        struct Reader {
+            stream: Decode,
             bytes: Bytes,
         }
 
-        impl<S> Reader<S> {
-            fn project(self: Pin<&mut Self>) -> (Pin<&mut S>, &mut Bytes) {
-                // SAFETY: don't move the self
-                let me = unsafe { self.get_unchecked_mut() };
-
-                // SAFETY: pin the stream back and don't move it later
-                let stream = unsafe { Pin::new_unchecked(&mut me.stream) };
-
-                (stream, &mut me.bytes)
-            }
-        }
-
-        impl<S> AsyncRead for Reader<S>
-        where
-            S: Stream<Item = Result<Bytes, io::Error>>,
-        {
+        impl AsyncRead for Reader {
             fn poll_read(
                 self: Pin<&mut Self>,
                 cx: &mut Context,
@@ -250,30 +250,30 @@ impl Responce {
                     return Poll::Ready(Ok(0));
                 }
 
-                let (mut stream, bytes) = self.project();
+                let me = self.get_mut();
 
-                if bytes.is_empty() {
-                    match stream.as_mut().poll_next(cx) {
+                if me.bytes.is_empty() {
+                    match me.stream.poll_next(cx) {
                         Poll::Ready(Some(Ok(b))) if b.is_empty() => {
                             // if next bytes is empty skip this iteration and reschedule
                             cx.waker().wake_by_ref();
                             return Poll::Pending;
                         }
-                        Poll::Ready(Some(Ok(b))) => *bytes = b,
-                        Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
+                        Poll::Ready(Some(Ok(b))) => me.bytes = b,
+                        Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e.into())),
                         Poll::Ready(None) => return Poll::Ready(Ok(0)),
                         Poll::Pending => return Poll::Pending,
                     }
                 }
 
-                let n = usize::min(bytes.len(), buf.len());
-                let head = bytes.split_to(n);
+                let n = usize::min(me.bytes.len(), buf.len());
+                let head = me.bytes.split_to(n);
                 buf[..n].copy_from_slice(&head);
                 Poll::Ready(Ok(n))
             }
         }
 
-        let stream = self.body_stream().map(|res| res.map_err(Error::into));
+        let stream = self.body;
         let bytes = Bytes::new();
         Reader { stream, bytes }
     }
