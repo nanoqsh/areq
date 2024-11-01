@@ -22,7 +22,7 @@ impl Protocol for Http2 {
     type Fetch = FetchHttp2;
     type Body = <FetchHttp2 as Fetch>::Body;
 
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
+    async fn handshake<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex,

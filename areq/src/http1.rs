@@ -17,7 +17,7 @@ impl Protocol for Http1 {
     type Fetch = FetchHttp1;
     type Body = <FetchHttp1 as Fetch>::Body;
 
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
+    async fn handshake<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex,

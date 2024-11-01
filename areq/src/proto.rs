@@ -53,8 +53,11 @@ pub trait Protocol: Sized {
     type Fetch: Fetch<Body = Self::Body>;
     type Body;
 
-    #[expect(async_fn_in_trait)]
-    async fn connect<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
+    fn handshake<'ex, S, I>(
+        &self,
+        spawn: &S,
+        se: Session<I>,
+    ) -> impl Future<Output = Result<Client<Self>, Error>> + Send
     where
         S: Spawn<'ex>,
         I: AsyncRead + AsyncWrite + Send + 'ex;
@@ -110,7 +113,7 @@ pub trait Task<'ex>: Future<Output = ()> + Send + 'ex {}
 impl<'ex, F> Task<'ex> for F where F: Future<Output = ()> + Send + 'ex {}
 
 /// Trait for a [task](Task) spawner.
-pub trait Spawn<'ex> {
+pub trait Spawn<'ex>: Sync {
     fn spawn<T>(&self, task: T)
     where
         T: Task<'ex>;
