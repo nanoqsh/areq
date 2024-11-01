@@ -15,7 +15,6 @@ pub struct Http1 {
 
 impl Protocol for Http1 {
     type Fetch = FetchHttp1;
-    type Body = <FetchHttp1 as Fetch>::Body;
 
     async fn handshake<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
     where
@@ -40,9 +39,6 @@ pub struct FetchHttp1 {
 }
 
 impl Fetch for FetchHttp1 {
-    type Error = areq_h1::Error;
-    type Body = areq_h1::BodyStream;
-
     fn prepare_request(&self, req: &mut Request) {
         let req = req.as_mut();
         *req.version_mut() = Version::HTTP_11;
@@ -57,7 +53,7 @@ impl Fetch for FetchHttp1 {
             .or_insert(default_accept);
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error> {
+    async fn fetch(&mut self, req: Request) -> Result<Responce, Error> {
         let res = self.reqs.send(req.into_inner()).await?;
         Ok(Responce::new(res.map(FetchBody::into_stream)))
     }

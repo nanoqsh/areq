@@ -19,7 +19,6 @@ pub struct Http2 {
 
 impl Protocol for Http2 {
     type Fetch = FetchHttp2;
-    type Body = <FetchHttp2 as Fetch>::Body;
 
     async fn handshake<'ex, S, I>(&self, spawn: &S, se: Session<I>) -> Result<Client<Self>, Error>
     where
@@ -45,9 +44,6 @@ pub struct FetchHttp2 {
 }
 
 impl Fetch for FetchHttp2 {
-    type Error = Error;
-    type Body = BodyStream;
-
     fn prepare_request(&self, req: &mut Request) {
         let req = req.as_mut();
         *req.version_mut() = Version::HTTP_2;
@@ -59,7 +55,7 @@ impl Fetch for FetchHttp2 {
             .or_insert(default_accept);
     }
 
-    async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error> {
+    async fn fetch(&mut self, req: Request) -> Result<Responce, Error> {
         let mut send = self.send.clone().ready().await?;
         let (resfu, stream) = send.send_request(req.into_inner(), true)?;
 

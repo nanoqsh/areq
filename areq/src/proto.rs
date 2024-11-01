@@ -3,7 +3,7 @@ use {
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     http::{response::Parts, HeaderMap, Method, StatusCode, Version},
-    std::{borrow::Cow, error, fmt, future::Future, io},
+    std::{borrow::Cow, error, fmt, future::Future, io, pin::Pin},
     url::Host,
 };
 
@@ -50,8 +50,7 @@ impl Address {
 
 /// Used HTTP protocol.
 pub trait Protocol: Sized {
-    type Fetch: Fetch<Body = Self::Body>;
-    type Body;
+    type Fetch: Fetch;
 
     fn handshake<'ex, S, I>(
         &self,
@@ -74,7 +73,7 @@ impl Error {
     pub fn try_into_io(self) -> Result<io::Error, Self> {
         match self {
             Self::Io(e) => Ok(e),
-            e => Err(e),
+            e @ Self::InvalidHost => Err(e),
         }
     }
 }
@@ -88,16 +87,16 @@ impl From<io::Error> for Error {
 impl From<h2::Error> for Error {
     fn from(e: h2::Error) -> Self {
         if e.is_io() {
-            Error::Io(e.into_io().expect("the error should be IO"))
+            Self::Io(e.into_io().expect("the error should be IO"))
         } else {
-            Error::Io(io::Error::other(e))
+            Self::Io(io::Error::other(e))
         }
     }
 }
 
 impl From<areq_h1::Error> for Error {
     fn from(e: areq_h1::Error) -> Self {
-        Error::Io(e.into())
+        Self::Io(e.into())
     }
 }
 
@@ -137,13 +136,8 @@ pub trait Spawn<'ex>: Sync {
 }
 
 pub trait Fetch {
-    type Error: Into<Error>;
-    type Body: Stream<Item = Result<Bytes, Self::Error>>;
-
     fn prepare_request(&self, req: &mut Request);
-
-    #[expect(async_fn_in_trait)]
-    async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error>;
+    async fn fetch(&mut self, req: Request) -> Result<Responce, Error>;
 }
 
 #[derive(Debug)]
@@ -169,15 +163,32 @@ impl Request {
     }
 }
 
-#[derive(Debug)]
-pub struct Responce<B> {
-    head: Parts,
-    body: B,
+enum Decode {
+    Stream(Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>),
 }
 
-impl<B> Responce<B> {
-    pub fn new(res: http::Response<B>) -> Self {
+impl fmt::Debug for Decode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Stream(_) => f.debug_tuple("Stream").finish(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Responce {
+    head: Parts,
+    body: Decode,
+}
+
+impl Responce {
+    pub fn new<B, E>(res: http::Response<B>) -> Self
+    where
+        B: Stream<Item = Result<Bytes, E>> + 'static,
+        E: Into<Error>,
+    {
         let (head, body) = res.into_parts();
+        let body = Decode::Stream(Box::pin(body.map(|res| res.map_err(E::into))));
         Self { head, body }
     }
 
@@ -197,19 +208,13 @@ impl<B> Responce<B> {
         &mut self.head.headers
     }
 
-    pub fn into_stream<E>(self) -> impl Stream<Item = Result<Bytes, Error>>
-    where
-        B: Stream<Item = Result<Bytes, E>>,
-        E: Into<Error>,
-    {
-        self.body.map(|res| res.map_err(E::into))
+    pub fn body_stream(self) -> impl Stream<Item = Result<Bytes, Error>> {
+        match self.body {
+            Decode::Stream(s) => s,
+        }
     }
 
-    pub fn into_reader<E>(self) -> impl AsyncRead
-    where
-        B: Stream<Item = Result<Bytes, E>>,
-        E: Into<Error>,
-    {
+    pub fn body_reader(self) -> impl AsyncRead {
         use std::{
             pin::Pin,
             task::{Context, Poll},
@@ -268,7 +273,7 @@ impl<B> Responce<B> {
             }
         }
 
-        let stream = self.into_stream().map(|res| res.map_err(Error::into));
+        let stream = self.body_stream().map(|res| res.map_err(Error::into));
         let bytes = Bytes::new();
         Reader { stream, bytes }
     }
@@ -288,7 +293,7 @@ mod tests {
 
         let res = Responce::new(http::Response::new(body));
         let actual: Vec<_> = async_io::block_on(
-            res.into_stream()
+            res.body_stream()
                 .map(|res| res.expect("all parts is ok"))
                 .collect(),
         );
@@ -303,7 +308,7 @@ mod tests {
 
         let res = Responce::new(http::Response::new(body));
         let mut actual = vec![];
-        async_io::block_on(io::copy(res.into_reader(), &mut actual)).expect("all parts is ok");
+        async_io::block_on(io::copy(res.body_reader(), &mut actual)).expect("all parts is ok");
         assert_eq!(actual, b"foobarbaz");
     }
 
@@ -313,7 +318,7 @@ mod tests {
             .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
 
         let res = Responce::new(http::Response::new(body));
-        let mut reader = res.into_reader();
+        let mut reader = res.body_reader();
 
         let mut buf = [0; 2];
         let n = async_io::block_on(reader.read(&mut buf)).expect("read body part to the buffer");

@@ -11,7 +11,7 @@ impl<P> Client<P>
 where
     P: Protocol,
 {
-    pub async fn send(&mut self, mut req: Request) -> Result<Responce<P::Body>, Error> {
+    pub async fn send(&mut self, mut req: Request) -> Result<Responce, Error> {
         self.0.prepare_request(&mut req);
         let res = self.0.fetch(req).await?;
         Ok(res)
