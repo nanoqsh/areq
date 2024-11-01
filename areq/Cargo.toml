@@ -12,3 +12,6 @@ h2 = "0.4.6"
 http.workspace = true
 tokio = "1.41.0"
 url.workspace = true
+
+[lints]
+workspace = true
