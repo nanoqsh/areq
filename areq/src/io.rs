@@ -60,54 +60,27 @@ where
 mod tests {
     use super::*;
 
-    fn poll<F, R>(f: F) -> R
-    where
-        F: FnOnce(&mut Context) -> R,
-    {
-        use std::{
-            sync::Arc,
-            task::{Wake, Waker},
-        };
+    #[test]
+    fn read() -> Result<(), Error> {
+        use {std::pin, tokio::io::AsyncReadExt};
 
-        struct TestWaker;
-
-        impl Wake for TestWaker {
-            fn wake(self: Arc<Self>) {}
-        }
-
-        let waker = Waker::from(Arc::new(TestWaker));
-        f(&mut Context::from_waker(&waker))
+        let mut buf = [0; 5];
+        let mut io = pin::pin!(Io(&b"hello"[..]));
+        let n = async_io::block_on(io.read(&mut buf))?;
+        assert_eq!(n, 5);
+        assert_eq!(&buf, b"hello");
+        Ok(())
     }
 
     #[test]
-    fn read() {
-        use {
-            std::{mem::MaybeUninit, pin},
-            tokio::io::{AsyncRead, ReadBuf},
-        };
-
-        let mut raw = [const { MaybeUninit::uninit() }; 5];
-        let mut buf = ReadBuf::uninit(&mut raw);
-
-        let io = pin::pin!(Io(&b"hello"[..]));
-        let Poll::Ready(Ok(())) = poll(|cx| io.poll_read(cx, &mut buf)) else {
-            unreachable!()
-        };
-
-        assert_eq!(buf.filled(), b"hello");
-    }
-
-    #[test]
-    fn write() {
-        use {std::pin, tokio::io::AsyncWrite};
+    fn write() -> Result<(), Error> {
+        use {std::pin, tokio::io::AsyncWriteExt};
 
         let mut buf = vec![];
-        let io = pin::pin!(Io(&mut buf));
-        let Poll::Ready(Ok(n)) = poll(|cx| io.poll_write(cx, b"hello")) else {
-            unreachable!()
-        };
-
+        let mut io = pin::pin!(Io(&mut buf));
+        let n = async_io::block_on(io.write(b"hello"))?;
         assert_eq!(n, 5);
         assert_eq!(buf, b"hello");
+        Ok(())
     }
 }
