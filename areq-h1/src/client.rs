@@ -199,6 +199,7 @@ impl fmt::Debug for FetchBody {
     }
 }
 
+// TODO: remove boxing
 pub struct BodyStream(Pin<Box<Receiver<Result<Bytes, Error>>>>);
 
 impl Stream for BodyStream {
