@@ -71,22 +71,39 @@ pub enum Error {
 }
 
 impl Error {
-    pub fn into_io(self) -> io::Error {
-        use std::io::ErrorKind;
-
+    pub fn try_into_io(self) -> Result<io::Error, Self> {
         match self {
-            Self::Io(e) => e,
-            Self::InvalidHost => io::Error::new(ErrorKind::InvalidInput, Self::InvalidHost),
+            Self::Io(e) => Ok(e),
+            e => Err(e),
         }
     }
 }
 
-impl<E> From<E> for Error
-where
-    E: Into<io::Error>,
-{
-    fn from(e: E) -> Self {
-        Self::Io(e.into())
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
+impl From<h2::Error> for Error {
+    fn from(e: h2::Error) -> Self {
+        if e.is_io() {
+            Error::Io(e.into_io().expect("the error should be IO"))
+        } else {
+            Error::Io(io::Error::other(e))
+        }
+    }
+}
+
+impl From<areq_h1::Error> for Error {
+    fn from(e: areq_h1::Error) -> Self {
+        Error::Io(e.into())
+    }
+}
+
+impl From<Error> for io::Error {
+    fn from(e: Error) -> Self {
+        e.try_into_io().unwrap_or_else(Self::other)
     }
 }
 
@@ -251,7 +268,7 @@ impl<B> Responce<B> {
             }
         }
 
-        let stream = self.into_stream().map(|res| res.map_err(Error::into_io));
+        let stream = self.into_stream().map(|res| res.map_err(Error::into));
         let bytes = Bytes::new();
         Reader { stream, bytes }
     }

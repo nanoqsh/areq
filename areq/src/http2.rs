@@ -7,7 +7,6 @@ use {
     h2::client,
     http::{header, HeaderValue, Version},
     std::{
-        io,
         pin::Pin,
         task::{Context, Poll},
     },
@@ -29,7 +28,7 @@ impl Protocol for Http2 {
     {
         let Session { io, .. } = se;
         let io = Io(Box::pin(io));
-        let (send, conn) = self.build.handshake(io).await.map_err(into_io_error)?;
+        let (send, conn) = self.build.handshake(io).await?;
         let reqs = Client(FetchHttp2 { send });
 
         spawn.spawn(async {
@@ -37,14 +36,6 @@ impl Protocol for Http2 {
         });
 
         Ok(reqs)
-    }
-}
-
-fn into_io_error(e: h2::Error) -> io::Error {
-    if e.is_io() {
-        e.into_io().expect("the error should be IO")
-    } else {
-        io::Error::other(e)
     }
 }
 
@@ -69,14 +60,12 @@ impl Fetch for FetchHttp2 {
     }
 
     async fn fetch(&mut self, req: Request) -> Result<Responce<Self::Body>, Error> {
-        let mut send = self.send.clone().ready().await.map_err(into_io_error)?;
-        let (resfu, stream) = send
-            .send_request(req.into_inner(), true)
-            .map_err(into_io_error)?;
+        let mut send = self.send.clone().ready().await?;
+        let (resfu, stream) = send.send_request(req.into_inner(), true)?;
 
         _ = stream;
 
-        let res = resfu.await.map_err(into_io_error)?;
+        let res = resfu.await?;
         Ok(Responce::new(res.map(BodyStream)))
     }
 }
@@ -87,9 +76,6 @@ impl Stream for BodyStream {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        self.0
-            .poll_data(cx)
-            .map_err(into_io_error)
-            .map_err(Error::Io)
+        self.0.poll_data(cx).map_err(Error::from)
     }
 }
