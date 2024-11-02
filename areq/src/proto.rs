@@ -24,7 +24,7 @@ pub struct Session<I> {
 pub struct Address {
     pub host: Host,
     pub port: u16,
-    pub security: bool,
+    pub secure: bool,
 }
 
 impl Address {
@@ -47,7 +47,7 @@ impl Address {
         const HTTP: u16 = 80;
         const HTTPS: u16 = 443;
 
-        if self.security {
+        if self.secure {
             HTTPS
         } else {
             HTTP
@@ -56,21 +56,19 @@ impl Address {
 }
 
 /// Used HTTP protocol.
-pub trait Protocol: Sized {
-    type Fetch<B>: Fetch<B>
+pub trait Protocol {
+    type Serve<B>: Serve<B>
     where
         B: areq_h1::Body;
 
     #[expect(async_fn_in_trait)]
-    async fn handshake<'ex, S, I, B>(
+    async fn handshake<I, B>(
         &self,
-        spawn: &S,
         se: Session<I>,
-    ) -> Result<Client<Self, B>, Error>
+    ) -> Result<(Client<Self, B>, impl Future), Error>
     where
-        S: Spawn<'ex>,
-        I: AsyncRead + AsyncWrite + Send + 'ex,
-        B: areq_h1::Body<Buf: Send, Stream: Send> + Send + 'ex;
+        I: AsyncRead + AsyncWrite,
+        B: areq_h1::Body;
 }
 
 /// The [protocol](Protocol) error type.
@@ -135,24 +133,13 @@ impl error::Error for Error {
     }
 }
 
-/// Trait alias for a thread safe future.
-pub trait Task<'ex>: Future<Output = ()> + Send + 'ex {}
-impl<'ex, F> Task<'ex> for F where F: Future<Output = ()> + Send + 'ex {}
-
-/// Trait for a [task](Task) spawner.
-pub trait Spawn<'ex>: Sync {
-    fn spawn<T>(&self, task: T)
-    where
-        T: Task<'ex>;
-}
-
-pub trait Fetch<B> {
+pub trait Serve<B> {
     type Body: BodyStream;
 
-    fn prepare_request(&self, req: &mut Request<B>);
+    fn prepare(&self, req: &mut Request<B>);
 
     #[expect(async_fn_in_trait)]
-    async fn fetch(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error>;
+    async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error>;
 }
 
 /// A body streaming trait alias.

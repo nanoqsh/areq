@@ -1,11 +1,11 @@
 use crate::{
-    proto::{Error, Fetch, Request, Responce},
+    proto::{Error, Request, Responce, Serve},
     Protocol,
 };
 
-pub struct Client<P, B>(pub(crate) P::Fetch<B>)
+pub struct Client<P, B>(pub(crate) P::Serve<B>)
 where
-    P: Protocol,
+    P: Protocol + ?Sized,
     B: areq_h1::Body;
 
 impl<P, B> Client<P, B>
@@ -16,16 +16,15 @@ where
     pub async fn send(
         &mut self,
         mut req: Request<B>,
-    ) -> Result<Responce<<P::Fetch<B> as Fetch<B>>::Body>, Error> {
-        self.0.prepare_request(&mut req);
-        let res = self.0.fetch(req).await?;
-        Ok(res)
+    ) -> Result<Responce<<P::Serve<B> as Serve<B>>::Body>, Error> {
+        self.0.prepare(&mut req);
+        self.0.serve(req).await
     }
 }
 
 impl<P, B> Clone for Client<P, B>
 where
-    P: Protocol<Fetch<B>: Clone>,
+    P: Protocol<Serve<B>: Clone>,
     B: areq_h1::Body,
 {
     fn clone(&self) -> Self {

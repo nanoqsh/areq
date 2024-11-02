@@ -9,9 +9,9 @@ use {
 };
 
 pub trait Body {
-    type Buf: Buf;
-    type Stream: Stream<Item = Self::Buf>;
-    fn chunk(self) -> Chunk<Self::Buf, Self::Stream>;
+    type Data: Buf;
+    type Stream: Stream<Item = Self::Data>;
+    fn chunk(self) -> Chunk<Self::Data, Self::Stream>;
 }
 
 pub enum Chunk<B, S> {
@@ -20,19 +20,19 @@ pub enum Chunk<B, S> {
 }
 
 impl Body for () {
-    type Buf = &'static [u8];
-    type Stream = Empty<Self::Buf>;
+    type Data = &'static [u8];
+    type Stream = Empty<Self::Data>;
 
-    fn chunk(self) -> Chunk<Self::Buf, Self::Stream> {
+    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
         Chunk::Full(&[])
     }
 }
 
 impl<'slice> Body for &'slice [u8] {
-    type Buf = &'slice [u8];
-    type Stream = Empty<Self::Buf>;
+    type Data = &'slice [u8];
+    type Stream = Empty<Self::Data>;
 
-    fn chunk(self) -> Chunk<Self::Buf, Self::Stream> {
+    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
         Chunk::Full(self)
     }
 }
@@ -43,10 +43,10 @@ impl<S> Body for Chunked<S>
 where
     S: Stream<Item: Buf>,
 {
-    type Buf = S::Item;
+    type Data = S::Item;
     type Stream = S;
 
-    fn chunk(self) -> Chunk<Self::Buf, Self::Stream> {
+    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
         Chunk::Stream(self.0)
     }
 }
@@ -57,10 +57,10 @@ impl<B> Body for Full<B>
 where
     B: Buf,
 {
-    type Buf = B;
-    type Stream = Empty<Self::Buf>;
+    type Data = B;
+    type Stream = Empty<Self::Data>;
 
-    fn chunk(self) -> Chunk<Self::Buf, Self::Stream> {
+    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
         Chunk::Full(self.0)
     }
 }

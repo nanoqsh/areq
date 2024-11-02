@@ -7,7 +7,7 @@ mod proto;
 pub use {
     crate::{
         client::Client,
-        proto::{Address, Error, Protocol, Request, Responce, Session, Spawn, Task},
+        proto::{Address, Error, Protocol, Request, Responce, Session},
     },
     url,
 };

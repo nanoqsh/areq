@@ -1,62 +1,54 @@
 use {
     crate::{
         client::Client,
-        proto::{Error, Fetch, Protocol, Request, Responce, Session, Spawn},
+        proto::{Error, Protocol, Request, Responce, Serve, Session},
     },
     areq_h1::Config,
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     http::{header, HeaderValue, Version},
     std::{
+        future::Future,
         pin::Pin,
         task::{Context, Poll},
     },
 };
 
 #[derive(Default)]
-pub struct Http1 {
+pub struct H1 {
     conf: Config,
 }
 
-impl Protocol for Http1 {
-    type Fetch<B> = FetchHttp1<B>
+impl Protocol for H1 {
+    type Serve<B> = ServeH1<B>
     where
         B: areq_h1::Body;
 
-    async fn handshake<'ex, S, I, B>(
-        &self,
-        spawn: &S,
-        se: Session<I>,
-    ) -> Result<Client<Self, B>, Error>
+    async fn handshake<I, B>(&self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
-        S: Spawn<'ex>,
-        I: AsyncRead + AsyncWrite + Send + 'ex,
-        B: areq_h1::Body<Buf: Send, Stream: Send> + Send + 'ex,
+        I: AsyncRead + AsyncWrite,
+        B: areq_h1::Body,
     {
         let Session { io, addr } = se;
         let (reqs, conn) = self.conf.clone().handshake(io);
-        let reqs = Client(FetchHttp1 {
-            reqs,
-            host: addr.repr().parse().map_err(|_| Error::InvalidHost)?,
-        });
-
-        spawn.spawn(conn);
-        Ok(reqs)
+        let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
+        let client = Client(ServeH1 { reqs, host });
+        Ok((client, conn))
     }
 }
 
-pub struct FetchHttp1<B> {
+pub struct ServeH1<B> {
     reqs: areq_h1::Requester<B>,
     host: HeaderValue,
 }
 
-impl<B> Fetch<B> for FetchHttp1<B>
+impl<B> Serve<B> for ServeH1<B>
 where
     B: areq_h1::Body,
 {
-    type Body = Http1Body;
+    type Body = BodyH1;
 
-    fn prepare_request(&self, req: &mut Request<B>) {
+    fn prepare(&self, req: &mut Request<B>) {
         *req.version_mut() = Version::HTTP_11;
 
         // http/1.1 requires a host header
@@ -69,20 +61,20 @@ where
             .or_insert(default_accept);
     }
 
-    async fn fetch(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
+    async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
         let res = self
             .reqs
             .send(req.into())
             .await?
-            .map(|body| Http1Body(body.body_stream()));
+            .map(|body| BodyH1(body.body_stream()));
 
         Ok(Responce::new(res))
     }
 }
 
-pub struct Http1Body(areq_h1::BodyStream);
+pub struct BodyH1(areq_h1::BodyStream);
 
-impl Stream for Http1Body {
+impl Stream for BodyH1 {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
