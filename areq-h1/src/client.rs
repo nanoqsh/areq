@@ -188,7 +188,7 @@ impl FetchBody {
         self.fetch.recv().await.map_err(|_| Error::Closed)?
     }
 
-    pub fn into_stream(self) -> BodyStream {
+    pub fn body_stream(self) -> BodyStream {
         BodyStream(Box::pin(self.fetch))
     }
 }

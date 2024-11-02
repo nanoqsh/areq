@@ -2,7 +2,7 @@ use {
     crate::client::Client,
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
-    http::{response::Parts, HeaderMap, Method, StatusCode, Version},
+    http::{request, response, HeaderMap, Method, StatusCode, Uri, Version},
     std::{
         borrow::Cow,
         error, fmt,
@@ -57,16 +57,20 @@ impl Address {
 
 /// Used HTTP protocol.
 pub trait Protocol: Sized {
-    type Fetch: Fetch;
+    type Fetch<B>: Fetch<B>
+    where
+        B: areq_h1::Body;
 
-    fn handshake<'ex, S, I>(
+    #[expect(async_fn_in_trait)]
+    async fn handshake<'ex, S, I, B>(
         &self,
         spawn: &S,
         se: Session<I>,
-    ) -> impl Future<Output = Result<Client<Self>, Error>> + Send
+    ) -> Result<Client<Self, B>, Error>
     where
         S: Spawn<'ex>,
-        I: AsyncRead + AsyncWrite + Send + 'ex;
+        I: AsyncRead + AsyncWrite + Send + 'ex,
+        B: areq_h1::Body<Buf: Send, Stream: Send> + Send + 'ex;
 }
 
 /// The [protocol](Protocol) error type.
@@ -142,71 +146,100 @@ pub trait Spawn<'ex>: Sync {
         T: Task<'ex>;
 }
 
-pub trait Fetch {
-    fn prepare_request(&self, req: &mut Request);
-    async fn fetch(&mut self, req: Request) -> Result<Responce, Error>;
+pub trait Fetch<B> {
+    type Body: BodyStream;
+
+    fn prepare_request(&self, req: &mut Request<B>);
+
+    #[expect(async_fn_in_trait)]
+    async fn fetch(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error>;
 }
 
+/// A body streaming trait alias.
+pub trait BodyStream: Stream<Item = Result<Bytes, Error>> + 'static {}
+impl<B> BodyStream for B where B: Stream<Item = Result<Bytes, Error>> + 'static {}
+
 #[derive(Debug)]
-pub struct Request(http::Request<()>);
+pub struct Request<B> {
+    head: request::Parts,
+    body: B,
+}
 
-impl Request {
-    pub fn get(uri: &str) -> Self {
-        let inner = http::Request::builder()
-            .method(Method::GET)
-            .uri(uri)
-            .body(())
-            .expect("construct a valid request");
-
-        Self(inner)
+impl<B> Request<B> {
+    pub fn new<U>(uri: U, method: Method, body: B) -> Self
+    where
+        U: Into<Uri>,
+    {
+        let (mut head, body) = http::Request::new(body).into_parts();
+        head.method = method;
+        head.uri = uri.into();
+        Self { head, body }
     }
 
-    pub(crate) fn as_mut(&mut self) -> &mut http::Request<()> {
-        &mut self.0
+    pub(crate) fn version_mut(&mut self) -> &mut Version {
+        &mut self.head.version
     }
 
-    pub(crate) fn into_inner(self) -> http::Request<()> {
-        self.0
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head.headers
+    }
+
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head.headers
+    }
+}
+
+impl<B> From<Request<B>> for http::Request<B> {
+    fn from(Request { head, body }: Request<B>) -> Self {
+        Self::from_parts(head, body)
     }
 }
 
 enum Decode {
-    Stream(Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>),
+    Stream(Pin<Box<dyn BodyStream>>),
 }
 
-impl fmt::Debug for Decode {
+pub struct Body(Decode);
+
+impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Stream(_) => f.debug_tuple("Stream").finish(),
-        }
+        f.debug_tuple("Body").field(&"..").finish()
     }
 }
 
-impl Stream for Decode {
+impl Stream for Body {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         match self.get_mut() {
-            Self::Stream(s) => Pin::new(s).poll_next(cx),
+            Self(Decode::Stream(s)) => Pin::new(s).poll_next(cx),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Responce {
-    head: Parts,
-    body: Decode,
+pub struct Responce<B = Body> {
+    head: response::Parts,
+    body: B,
 }
 
-impl Responce {
-    pub fn new<B, E>(res: http::Response<B>) -> Self
+impl<B> Responce<B> {
+    pub fn new(res: http::Response<B>) -> Self
     where
-        B: Stream<Item = Result<Bytes, E>> + 'static,
-        E: Into<Error>,
+        B: BodyStream,
     {
         let (head, body) = res.into_parts();
-        let body = Decode::Stream(Box::pin(body.map(|res| res.map_err(E::into))));
         Self { head, body }
+    }
+
+    pub fn boxed(self) -> Responce
+    where
+        B: BodyStream,
+    {
+        Responce {
+            head: self.head,
+            body: Body(Decode::Stream(Box::pin(self.body))),
+        }
     }
 
     pub fn status(&self) -> StatusCode {
@@ -225,22 +258,43 @@ impl Responce {
         &mut self.head.headers
     }
 
-    pub fn body_stream(self) -> impl Stream<Item = Result<Bytes, Error>> {
+    pub fn body_stream(self) -> B
+    where
+        B: BodyStream,
+    {
         self.body
     }
 
-    pub fn body_reader(self) -> impl AsyncRead {
+    pub fn body_reader(self) -> impl AsyncRead
+    where
+        B: BodyStream,
+    {
         use std::{
             pin::Pin,
             task::{Context, Poll},
         };
 
-        struct Reader {
-            stream: Decode,
+        struct Reader<S> {
+            stream: S,
             bytes: Bytes,
         }
 
-        impl AsyncRead for Reader {
+        impl<S> Reader<S> {
+            fn project(self: Pin<&mut Self>) -> (Pin<&mut S>, &mut Bytes) {
+                // SAFETY: don't move the self
+                let me = unsafe { self.get_unchecked_mut() };
+
+                // SAFETY: pin the stream back and don't move it later
+                let stream = unsafe { Pin::new_unchecked(&mut me.stream) };
+
+                (stream, &mut me.bytes)
+            }
+        }
+
+        impl<S> AsyncRead for Reader<S>
+        where
+            S: Stream<Item = Result<Bytes, io::Error>>,
+        {
             fn poll_read(
                 self: Pin<&mut Self>,
                 cx: &mut Context,
@@ -250,30 +304,30 @@ impl Responce {
                     return Poll::Ready(Ok(0));
                 }
 
-                let me = self.get_mut();
+                let (mut stream, bytes) = self.project();
 
-                if me.bytes.is_empty() {
-                    match me.stream.poll_next(cx) {
+                if bytes.is_empty() {
+                    match stream.as_mut().poll_next(cx) {
                         Poll::Ready(Some(Ok(b))) if b.is_empty() => {
                             // if next bytes is empty skip this iteration and reschedule
                             cx.waker().wake_by_ref();
                             return Poll::Pending;
                         }
-                        Poll::Ready(Some(Ok(b))) => me.bytes = b,
-                        Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e.into())),
+                        Poll::Ready(Some(Ok(b))) => *bytes = b,
+                        Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
                         Poll::Ready(None) => return Poll::Ready(Ok(0)),
                         Poll::Pending => return Poll::Pending,
                     }
                 }
 
-                let n = usize::min(me.bytes.len(), buf.len());
-                let head = me.bytes.split_to(n);
+                let n = usize::min(bytes.len(), buf.len());
+                let head = bytes.split_to(n);
                 buf[..n].copy_from_slice(&head);
                 Poll::Ready(Ok(n))
             }
         }
 
-        let stream = self.body;
+        let stream = self.body_stream().map(|res| res.map_err(Error::into));
         let bytes = Bytes::new();
         Reader { stream, bytes }
     }
