@@ -8,9 +8,9 @@ areq-h1.workspace = true
 async-io.workspace = true
 bytes.workspace = true
 futures-lite.workspace = true
-h2 = "0.4.6"
+h2 = "0.4"
 http.workspace = true
-tokio = "1.41.0"
+tokio = "1.41"
 url.workspace = true
 
 [lints]
