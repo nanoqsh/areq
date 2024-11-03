@@ -182,11 +182,7 @@ impl<B> From<Request<B>> for http::Request<B> {
     }
 }
 
-enum Decode {
-    Stream(Pin<Box<dyn BodyStream>>),
-}
-
-pub struct Body(Decode);
+pub struct Body(Pin<Box<dyn BodyStream>>);
 
 impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -199,7 +195,7 @@ impl Stream for Body {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         match self.get_mut() {
-            Self(Decode::Stream(s)) => Pin::new(s).poll_next(cx),
+            Self(stream) => Pin::new(stream).poll_next(cx),
         }
     }
 }
@@ -225,7 +221,7 @@ impl<B> Responce<B> {
     {
         Responce {
             head: self.head,
-            body: Body(Decode::Stream(Box::pin(self.body))),
+            body: Body(Box::pin(self.body)),
         }
     }
 
