@@ -1,13 +1,13 @@
 use {
     crate::{
-        body::{Body, Chunk},
+        body::{self, Body, IntoBody, Kind},
         error::Error,
         handler::{Handler, Parser, ReadStrategy},
         headers::{self, ContentLen},
     },
     async_channel::{Receiver, Sender},
     bytes::{Buf, Bytes},
-    futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
+    futures_lite::{AsyncRead, AsyncWrite, Stream},
     http::{header, HeaderValue, Request, Response},
     std::{
         fmt,
@@ -37,7 +37,7 @@ impl Config {
     pub fn handshake<I, B>(self, io: I) -> (Requester<B>, impl Future<Output = ()>)
     where
         I: AsyncRead + AsyncWrite,
-        B: Body,
+        B: IntoBody,
     {
         let (send_req, recv_req) = async_channel::bounded(1);
         let (send_res, recv_res) = async_channel::bounded(1);
@@ -77,40 +77,50 @@ struct Connection<'pin, I, B> {
 async fn connect<I, B>(mut conn: Connection<'_, I, B>)
 where
     I: AsyncRead + AsyncWrite,
-    B: Body,
+    B: IntoBody,
 {
     while let Ok(req) = conn.recv_req.recv().await {
         let process = async {
             let (parts, body) = req.into_parts();
             let mut head = Request::from_parts(parts, ());
 
-            match body.chunk() {
-                Chunk::Full(data) => {
-                    let body = data.chunk();
-                    let body_len = HeaderValue::from(body.len());
+            match B::Body::KIND {
+                Kind::Empty => {
+                    let zero_len = const { HeaderValue::from_static("0") };
 
-                    head.headers_mut().insert(header::CONTENT_LENGTH, body_len);
+                    head.headers_mut().insert(header::CONTENT_LENGTH, zero_len);
                     headers::remove_chunked_encoding(head.headers_mut());
 
                     conn.io.write_header(&head).await?;
-                    conn.io.write_body(body).await?;
-                    conn.io.flush().await?;
                 }
-                Chunk::Stream(stream) => {
+                Kind::Full => {
+                    let full = body::take_full(body).await;
+
+                    let chunk = full.chunk();
+                    let chunk_len = HeaderValue::from(chunk.len());
+
+                    head.headers_mut().insert(header::CONTENT_LENGTH, chunk_len);
+                    headers::remove_chunked_encoding(head.headers_mut());
+
+                    conn.io.write_header(&head).await?;
+                    conn.io.write_body(chunk).await?;
+                }
+                Kind::Chunked => {
                     head.headers_mut().remove(header::CONTENT_LENGTH);
                     headers::insert_chunked_encoding(head.headers_mut());
 
                     conn.io.write_header(&head).await?;
-                    let mut stream = pin::pin!(stream);
-                    while let Some(c) = stream.next().await {
-                        conn.io.write_chunk(c.chunk()).await?;
+                    let mut body = body.into_body();
+                    while let Some(chunk) = body.chunk().await {
+                        conn.io.write_chunk(chunk.chunk()).await?;
                         conn.io.flush().await?;
                     }
 
                     conn.io.write_chunk(&[]).await?;
-                    conn.io.flush().await?;
                 }
             }
+
+            conn.io.flush().await?;
 
             let head = conn.io.read_header().await?;
             let res = conn.parser.parse_header(head)?;
@@ -172,7 +182,7 @@ pub struct Requester<B> {
 impl<B> Requester<B> {
     pub async fn send(&self, req: Request<B>) -> Result<Response<FetchBody>, Error>
     where
-        B: Body,
+        B: IntoBody,
     {
         self.send_req.send(req).await.map_err(|_| Error::Closed)?;
         self.recv_res.recv().await.map_err(|_| Error::Closed)?
@@ -324,7 +334,7 @@ mod tests {
             },
             async {
                 let body = stream::iter(CHUNKS).map(str::as_bytes);
-                let req = Request::new(Chunked(body));
+                let req = Request::new(Chunked::new(body));
                 let mut res = reqs.send(req).await?;
                 for expected in CHUNKS {
                     let chunk = res.body_mut().frame().await?;

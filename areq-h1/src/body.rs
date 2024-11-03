@@ -1,76 +1,146 @@
 use {
     bytes::Buf,
-    futures_lite::Stream,
-    std::{
-        marker::PhantomData,
-        pin::Pin,
-        task::{Context, Poll},
-    },
+    futures_lite::{Stream, StreamExt},
+    std::pin::Pin,
 };
 
-pub trait Body {
-    type Data: Buf;
-    type Stream: Stream<Item = Self::Data>;
-    fn chunk(self) -> Chunk<Self::Data, Self::Stream>;
+pub trait IntoBody {
+    type Body: Body;
+
+    fn into_body(self) -> Self::Body;
 }
 
-pub enum Chunk<B, S> {
-    Full(B),
-    Stream(S),
+pub trait Body: Sized {
+    const KIND: Kind;
+
+    type Chunk: Buf;
+
+    #[expect(async_fn_in_trait)]
+    async fn chunk(&mut self) -> Option<Self::Chunk>;
+
+    // http2 extension
+    fn is_end(&self) -> bool {
+        matches!(Self::KIND, Kind::Empty)
+    }
+}
+
+impl<C> IntoBody for C
+where
+    C: Body,
+{
+    type Body = Self;
+
+    fn into_body(self) -> Self::Body {
+        self
+    }
+}
+
+pub enum Kind {
+    Empty,
+    Full,
+    Chunked,
+}
+
+pub async fn take_full<B>(body: B) -> <B::Body as Body>::Chunk
+where
+    B: IntoBody,
+{
+    assert!(
+        matches!(B::Body::KIND, Kind::Full),
+        "body type must be full",
+    );
+
+    let mut body = body.into_body();
+    debug_assert!(!body.is_end(), "the body must have only one chunk");
+
+    let chunk = body.chunk().await.expect("full body should have content");
+    debug_assert!(body.is_end(), "the body must have only one chunk");
+
+    chunk
+}
+
+pub enum Void {}
+
+impl Buf for Void {
+    fn remaining(&self) -> usize {
+        unreachable!()
+    }
+
+    fn chunk(&self) -> &[u8] {
+        unreachable!()
+    }
+
+    fn advance(&mut self, _: usize) {
+        unreachable!()
+    }
 }
 
 impl Body for () {
-    type Data = &'static [u8];
-    type Stream = Empty<Self::Data>;
+    const KIND: Kind = Kind::Empty;
 
-    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
-        Chunk::Full(&[])
+    type Chunk = Void;
+
+    async fn chunk(&mut self) -> Option<Self::Chunk> {
+        None
     }
 }
 
-impl<'slice> Body for &'slice [u8] {
-    type Data = &'slice [u8];
-    type Stream = Empty<Self::Data>;
+pub struct Full<B>(Option<B>);
 
-    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
-        Chunk::Full(self)
+impl<B> Full<B> {
+    pub fn new(body: B) -> Self {
+        Self(Some(body))
     }
 }
-
-pub struct Chunked<S>(pub S);
-
-impl<S> Body for Chunked<S>
-where
-    S: Stream<Item: Buf>,
-{
-    type Data = S::Item;
-    type Stream = S;
-
-    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
-        Chunk::Stream(self.0)
-    }
-}
-
-pub struct Full<B>(pub B);
 
 impl<B> Body for Full<B>
 where
     B: Buf,
 {
-    type Data = B;
-    type Stream = Empty<Self::Data>;
+    const KIND: Kind = Kind::Full;
 
-    fn chunk(self) -> Chunk<Self::Data, Self::Stream> {
-        Chunk::Full(self.0)
+    type Chunk = B;
+
+    async fn chunk(&mut self) -> Option<Self::Chunk> {
+        self.0.take()
+    }
+
+    fn is_end(&self) -> bool {
+        self.0.is_none()
     }
 }
 
-pub struct Empty<T>(PhantomData<T>);
+impl<'slice> IntoBody for &'slice [u8] {
+    type Body = Full<&'slice [u8]>;
 
-impl<T> Stream for Empty<T> {
-    type Item = T;
+    fn into_body(self) -> Self::Body {
+        Full::new(self)
+    }
+}
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context) -> Poll<Option<Self::Item>> {
-        Poll::Ready(None)
+// TODO: remove boxing
+pub struct Chunked<S>(Pin<Box<S>>);
+
+impl<S> Chunked<S> {
+    pub fn new(stream: S) -> Self {
+        Self(Box::pin(stream))
+    }
+}
+
+impl<S> Body for Chunked<S>
+where
+    S: Stream<Item: Buf>,
+{
+    const KIND: Kind = Kind::Chunked;
+
+    type Chunk = S::Item;
+
+    async fn chunk(&mut self) -> Option<Self::Chunk> {
+        self.0.next().await
+    }
+
+    fn is_end(&self) -> bool {
+        let (_, upper_bound) = self.0.size_hint();
+        upper_bound == Some(0)
     }
 }

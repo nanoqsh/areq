@@ -53,7 +53,7 @@ fn serve() -> Result<(), Error> {
             let mut json = BytesMut::new();
             serde_json::to_writer((&mut json).writer(), &n).expect("write json");
 
-            let req = Request::new(Full(json));
+            let req = Request::new(Full::new(json));
             let mut res = reqs.send(req).await?;
 
             let mut buf = vec![];

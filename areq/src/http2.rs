@@ -1,12 +1,12 @@
 use {
     crate::{client::Client, io::Io, proto::Serve, Error, Protocol, Request, Responce, Session},
     bytes::{Buf, Bytes},
-    futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
+    futures_lite::{AsyncRead, AsyncWrite, Stream},
     h2::client,
     http::{header, HeaderValue, Version},
     std::{
         future::{self, Future},
-        pin::{self, Pin},
+        pin::Pin,
         task::{Context, Poll},
     },
 };
@@ -19,12 +19,12 @@ pub struct H2 {
 impl Protocol for H2 {
     type Serve<B> = ServeH2<B>
     where
-        B: areq_h1::Body;
+        B: areq_h1::IntoBody;
 
     async fn handshake<I, B>(&self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
-        B: areq_h1::Body,
+        B: areq_h1::IntoBody,
     {
         let Session { io, .. } = se;
         let io = Io(Box::pin(io));
@@ -40,14 +40,14 @@ impl Protocol for H2 {
 
 pub struct ServeH2<B>
 where
-    B: areq_h1::Body,
+    B: areq_h1::IntoBody,
 {
-    send: client::SendRequest<Flow<B::Data>>,
+    send: client::SendRequest<Flow<<B::Body as areq_h1::Body>::Chunk>>,
 }
 
 impl<B> ServeH2<B>
 where
-    B: areq_h1::Body,
+    B: areq_h1::IntoBody,
 {
     async fn ready(&mut self) -> Result<(), h2::Error> {
         future::poll_fn(|cx| self.send.poll_ready(cx)).await
@@ -56,7 +56,7 @@ where
 
 impl<B> Clone for ServeH2<B>
 where
-    B: areq_h1::Body,
+    B: areq_h1::IntoBody,
 {
     fn clone(&self) -> Self {
         Self {
@@ -67,7 +67,7 @@ where
 
 impl<B> Serve<B> for ServeH2<B>
 where
-    B: areq_h1::Body,
+    B: areq_h1::IntoBody,
 {
     type Body = BodyH2;
 
@@ -82,20 +82,37 @@ where
     }
 
     async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
-        use areq_h1::Chunk;
+        use areq_h1::{Body, Kind};
 
         let (head, body) = http::Request::from(req).into_parts();
         let header_req = http::Request::from_parts(head, ());
 
-        self.ready().await?;
-        let (resfu, mut send_body) = self.send.send_request(header_req, true)?;
+        let mut body = body.into_body();
+        let empty = body.is_end();
 
-        match body.chunk() {
-            Chunk::Full(data) => send_body.send_data(Flow::Next(data), true)?,
-            Chunk::Stream(stream) => {
-                let mut stream = pin::pin!(stream);
-                while let Some(c) = stream.next().await {
-                    send_body.send_data(Flow::Next(c), false)?;
+        self.ready().await?;
+        let (resfu, mut send_body) = self.send.send_request(header_req, empty)?;
+
+        match B::Body::KIND {
+            Kind::Empty => debug_assert!(empty, "an empty body must be empty"),
+            Kind::Full => {
+                debug_assert!(!empty, "a full body must not be empty");
+
+                let full = areq_h1::take_full(body).await;
+                send_body.send_data(Flow::Next(full), true)?;
+            }
+            Kind::Chunked => 'stream: {
+                if empty {
+                    break 'stream;
+                }
+
+                while let Some(chunk) = body.chunk().await {
+                    let end = body.is_end();
+                    send_body.send_data(Flow::Next(chunk), end)?;
+
+                    if end {
+                        break 'stream;
+                    }
                 }
 
                 send_body.send_data(Flow::End, true)?;

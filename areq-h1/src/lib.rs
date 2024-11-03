@@ -7,7 +7,7 @@ mod handler;
 mod headers;
 
 pub use crate::{
-    body::{Body, Chunk, Chunked, Empty, Full},
+    body::{take_full, Body, Chunked, Full, IntoBody, Kind},
     client::{BodyStream, Config, FetchBody, Requester},
     error::Error,
     handler::ReadStrategy,
