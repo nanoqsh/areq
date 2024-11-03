@@ -85,8 +85,8 @@ where
             let mut head = Request::from_parts(parts, ());
 
             match body.chunk() {
-                Chunk::Full(full) => {
-                    let body = full.chunk();
+                Chunk::Full(data) => {
+                    let body = data.chunk();
                     let body_len = HeaderValue::from(body.len());
 
                     head.headers_mut().insert(header::CONTENT_LENGTH, body_len);

@@ -1,12 +1,12 @@
 use {
     crate::{client::Client, io::Io, proto::Serve, Error, Protocol, Request, Responce, Session},
-    bytes::Bytes,
-    futures_lite::{AsyncRead, AsyncWrite, Stream},
+    bytes::{Buf, Bytes},
+    futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     h2::client,
     http::{header, HeaderValue, Version},
     std::{
-        future::Future,
-        pin::Pin,
+        future::{self, Future},
+        pin::{self, Pin},
         task::{Context, Poll},
     },
 };
@@ -42,7 +42,16 @@ pub struct ServeH2<B>
 where
     B: areq_h1::Body,
 {
-    send: client::SendRequest<B::Data>,
+    send: client::SendRequest<Flow<B::Data>>,
+}
+
+impl<B> ServeH2<B>
+where
+    B: areq_h1::Body,
+{
+    async fn ready(&mut self) -> Result<(), h2::Error> {
+        future::poll_fn(|cx| self.send.poll_ready(cx)).await
+    }
 }
 
 impl<B> Clone for ServeH2<B>
@@ -73,14 +82,59 @@ where
     }
 
     async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
-        let mut send = self.send.clone().ready().await?;
-        let req: http::Request<_> = req.into();
-        let (resfu, stream) = send.send_request(req.map(|_| ()), true)?;
+        use areq_h1::Chunk;
 
-        _ = stream;
+        let (head, body) = http::Request::from(req).into_parts();
+        let header_req = http::Request::from_parts(head, ());
+
+        self.ready().await?;
+        let (resfu, mut send_body) = self.send.send_request(header_req, true)?;
+
+        match body.chunk() {
+            Chunk::Full(data) => send_body.send_data(Flow::Next(data), true)?,
+            Chunk::Stream(stream) => {
+                let mut stream = pin::pin!(stream);
+                while let Some(c) = stream.next().await {
+                    send_body.send_data(Flow::Next(c), false)?;
+                }
+
+                send_body.send_data(Flow::End, true)?;
+            }
+        }
 
         let res = resfu.await?.map(BodyH2);
         Ok(Responce::new(res))
+    }
+}
+
+enum Flow<B> {
+    Next(B),
+    End,
+}
+
+impl<B> Buf for Flow<B>
+where
+    B: Buf,
+{
+    fn remaining(&self) -> usize {
+        match self {
+            Self::Next(buf) => buf.remaining(),
+            Self::End => 0,
+        }
+    }
+
+    fn chunk(&self) -> &[u8] {
+        match self {
+            Self::Next(buf) => buf.chunk(),
+            Self::End => &[],
+        }
+    }
+
+    fn advance(&mut self, cnt: usize) {
+        match self {
+            Self::Next(buf) => buf.advance(cnt),
+            Self::End => assert_eq!(cnt, 0, "can't advance further than end"),
+        }
     }
 }
 
