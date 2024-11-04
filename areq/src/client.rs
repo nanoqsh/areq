@@ -1,7 +1,6 @@
 use crate::{
     body::IntoBody,
-    proto::{Error, Request, Response, Serve},
-    Protocol,
+    proto::{Error, Protocol, Request, Response, Serve},
 };
 
 pub struct Client<P, B>(pub(crate) P::Serve<B>)

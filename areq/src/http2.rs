@@ -27,7 +27,7 @@ impl Protocol for H2 {
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(&self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
+    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
         B: IntoBody,

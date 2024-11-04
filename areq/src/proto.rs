@@ -62,10 +62,7 @@ pub trait Protocol {
         B: IntoBody;
 
     #[expect(async_fn_in_trait)]
-    async fn handshake<I, B>(
-        &self,
-        se: Session<I>,
-    ) -> Result<(Client<Self, B>, impl Future), Error>
+    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
         B: IntoBody;

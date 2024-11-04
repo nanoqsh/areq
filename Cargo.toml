@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["areq", "areq-body", "areq-h1", "examples/h1-fetch"]
+members = [
+    "areq",
+    "areq-body",
+    "areq-h1",
+    "examples/fetch",
+    "examples/h1-fetch",
+]
 
 [workspace.dependencies]
 areq = { version = "=0.1.0", path = "areq" }

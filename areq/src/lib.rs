@@ -15,5 +15,5 @@ pub use {
             Address, BodyStream, BoxedBody, Error, Protocol, Request, Response, Serve, Session,
         },
     },
-    url,
+    http, url,
 };

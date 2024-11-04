@@ -25,13 +25,13 @@ impl Protocol for H1 {
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(&self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
+    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
         let Session { io, addr } = se;
-        let (reqs, conn) = self.conf.clone().handshake(io);
+        let (reqs, conn) = self.conf.handshake(io);
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
         let client = Client(ServeH1 { reqs, host });
         Ok((client, conn))
