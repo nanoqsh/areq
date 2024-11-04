@@ -2,7 +2,7 @@ use {
     crate::{
         body::IntoBody,
         client::Client,
-        proto::{Error, Protocol, Request, Responce, Serve, Session},
+        proto::{Error, Protocol, Request, Response, Serve, Session},
     },
     areq_h1::Config,
     bytes::Bytes,
@@ -62,12 +62,12 @@ where
             .or_insert(default_accept);
     }
 
-    async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
+    async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error> {
         let res = self.reqs.send(req.into()).await?.map(|body| BodyH1 {
-            body: body.body_stream(),
+            body: body.stream(),
         });
 
-        Ok(Responce::new(res))
+        Ok(Response::new(res))
     }
 }
 

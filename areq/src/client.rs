@@ -1,6 +1,6 @@
 use crate::{
     body::IntoBody,
-    proto::{Error, Request, Responce, Serve},
+    proto::{Error, Request, Response, Serve},
     Protocol,
 };
 
@@ -14,10 +14,11 @@ where
     P: Protocol,
     B: IntoBody,
 {
+    #[inline]
     pub async fn send(
         &mut self,
         mut req: Request<B>,
-    ) -> Result<Responce<<P::Serve<B> as Serve<B>>::Body>, Error> {
+    ) -> Result<Response<<P::Serve<B> as Serve<B>>::Body>, Error> {
         self.0.prepare(&mut req);
         self.0.serve(req).await
     }
@@ -28,6 +29,7 @@ where
     P: Protocol<Serve<B>: Clone>,
     B: IntoBody,
 {
+    #[inline]
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }

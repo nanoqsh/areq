@@ -4,7 +4,7 @@ use {
         client::Client,
         io::Io,
         proto::Serve,
-        Error, Protocol, Request, Responce, Session,
+        Error, Protocol, Request, Response, Session,
     },
     bytes::{Buf, Bytes},
     futures_lite::{AsyncRead, AsyncWrite, Stream},
@@ -87,7 +87,7 @@ where
             .or_insert(default_accept);
     }
 
-    async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
+    async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error> {
         let (head, body) = http::Request::from(req).into_parts();
         let header_req = http::Request::from_parts(head, ());
 
@@ -124,7 +124,7 @@ where
         }
 
         let res = resfu.await?.map(BodyH2);
-        Ok(Responce::new(res))
+        Ok(Response::new(res))
     }
 }
 

@@ -12,7 +12,6 @@ pub trait IntoBody {
 
 pub trait Body: Sized {
     const KIND: Kind;
-
     type Chunk: Buf;
 
     #[expect(async_fn_in_trait)]

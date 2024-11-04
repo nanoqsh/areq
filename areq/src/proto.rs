@@ -139,7 +139,7 @@ pub trait Serve<B> {
     fn prepare(&self, req: &mut Request<B>);
 
     #[expect(async_fn_in_trait)]
-    async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error>;
+    async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
 }
 
 /// A body streaming trait alias.
@@ -167,6 +167,14 @@ impl<B> Request<B> {
         &mut self.head.version
     }
 
+    pub fn method(&self) -> &Method {
+        &self.head.method
+    }
+
+    pub fn method_mut(&mut self) -> &mut Method {
+        &mut self.head.method
+    }
+
     pub fn headers(&self) -> &HeaderMap {
         &self.head.headers
     }
@@ -182,15 +190,22 @@ impl<B> From<Request<B>> for http::Request<B> {
     }
 }
 
-pub struct Body(Pin<Box<dyn BodyStream>>);
+impl<B> From<http::Request<B>> for Request<B> {
+    fn from(req: http::Request<B>) -> Self {
+        let (head, body) = req.into_parts();
+        Self { head, body }
+    }
+}
 
-impl fmt::Debug for Body {
+pub struct BoxedBody(Pin<Box<dyn BodyStream>>);
+
+impl fmt::Debug for BoxedBody {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Body").field(&"..").finish()
     }
 }
 
-impl Stream for Body {
+impl Stream for BoxedBody {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
@@ -201,30 +216,12 @@ impl Stream for Body {
 }
 
 #[derive(Debug)]
-pub struct Responce<B = Body> {
+pub struct Response<B = BoxedBody> {
     head: response::Parts,
     body: B,
 }
 
-impl<B> Responce<B> {
-    pub fn new(res: http::Response<B>) -> Self
-    where
-        B: BodyStream,
-    {
-        let (head, body) = res.into_parts();
-        Self { head, body }
-    }
-
-    pub fn boxed(self) -> Responce
-    where
-        B: BodyStream,
-    {
-        Responce {
-            head: self.head,
-            body: Body(Box::pin(self.body)),
-        }
-    }
-
+impl<B> Response<B> {
     pub fn status(&self) -> StatusCode {
         self.head.status
     }
@@ -240,18 +237,29 @@ impl<B> Responce<B> {
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
     }
+}
 
-    pub fn body_stream(self) -> B
-    where
-        B: BodyStream,
-    {
+impl<B> Response<B>
+where
+    B: BodyStream,
+{
+    pub fn new(res: http::Response<B>) -> Self {
+        let (head, body) = res.into_parts();
+        Self { head, body }
+    }
+
+    pub fn boxed(self) -> Response {
+        Response {
+            head: self.head,
+            body: BoxedBody(Box::pin(self.body)),
+        }
+    }
+
+    pub fn body(self) -> B {
         self.body
     }
 
-    pub fn body_reader(self) -> impl AsyncRead
-    where
-        B: BodyStream,
-    {
+    pub fn body_reader(self) -> impl AsyncRead {
         use std::{
             pin::Pin,
             task::{Context, Poll},
@@ -301,9 +309,22 @@ impl<B> Responce<B> {
             }
         }
 
-        let stream = self.body_stream().map(|res| res.map_err(Error::into));
+        let stream = self.body().map(|res| res.map_err(Error::into));
         let bytes = Bytes::new();
         Reader { stream, bytes }
+    }
+}
+
+impl<B> From<Response<B>> for http::Response<B> {
+    fn from(Response { head, body }: Response<B>) -> Self {
+        Self::from_parts(head, body)
+    }
+}
+
+impl<B> From<http::Response<B>> for Response<B> {
+    fn from(res: http::Response<B>) -> Self {
+        let (head, body) = res.into_parts();
+        Self { head, body }
     }
 }
 
@@ -319,9 +340,9 @@ mod tests {
         let body = stream::iter(["foo", "bar", "baz"])
             .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
 
-        let res = Responce::new(http::Response::new(body));
+        let res = Response::new(http::Response::new(body));
         let actual: Vec<_> = async_io::block_on(
-            res.body_stream()
+            res.body()
                 .map(|res| res.expect("all parts is ok"))
                 .collect(),
         );
@@ -334,7 +355,7 @@ mod tests {
         let body = stream::iter(["foo", "bar", "baz"])
             .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
 
-        let res = Responce::new(http::Response::new(body));
+        let res = Response::new(http::Response::new(body));
         let mut actual = vec![];
         async_io::block_on(io::copy(res.body_reader(), &mut actual)).expect("all parts is ok");
         assert_eq!(actual, b"foobarbaz");
@@ -345,7 +366,7 @@ mod tests {
         let body = stream::iter(["foo", "bar", "baz"])
             .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
 
-        let res = Responce::new(http::Response::new(body));
+        let res = Response::new(http::Response::new(body));
         let mut reader = res.body_reader();
 
         let mut buf = [0; 2];

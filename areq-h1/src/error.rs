@@ -16,14 +16,17 @@ pub enum Error {
 }
 
 impl Error {
+    #[inline]
     pub fn invalid_input() -> Self {
         Self::Io(ErrorKind::InvalidInput.into())
     }
 
+    #[inline]
     pub fn unexpected_eof() -> Self {
         Self::Io(ErrorKind::UnexpectedEof.into())
     }
 
+    #[inline]
     pub fn try_into_io(self) -> Result<io::Error, Self> {
         match self {
             Self::Io(e) => Ok(e),
@@ -33,18 +36,21 @@ impl Error {
 }
 
 impl From<io::Error> for Error {
+    #[inline]
     fn from(v: io::Error) -> Self {
         Self::Io(v)
     }
 }
 
 impl From<httparse::Error> for Error {
+    #[inline]
     fn from(v: httparse::Error) -> Self {
         Self::Parse(v)
     }
 }
 
 impl From<Error> for io::Error {
+    #[inline]
     fn from(e: Error) -> Self {
         e.try_into_io().unwrap_or_else(Self::other)
     }

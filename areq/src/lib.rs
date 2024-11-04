@@ -11,7 +11,9 @@ pub mod body {
 pub use {
     crate::{
         client::Client,
-        proto::{Address, Error, Protocol, Request, Responce, Session},
+        proto::{
+            Address, BodyStream, BoxedBody, Error, Protocol, Request, Response, Serve, Session,
+        },
     },
     url,
 };

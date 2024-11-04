@@ -24,16 +24,19 @@ pub struct Config {
 }
 
 impl Config {
+    #[inline]
     pub fn read_strategy(mut self, read_strategy: ReadStrategy) -> Self {
         self.read_strategy = read_strategy;
         self
     }
 
+    #[inline]
     pub fn max_headers(mut self, n: usize) -> Self {
         self.parser.set_max_headers(n);
         self
     }
 
+    #[inline]
     pub fn handshake<I, B>(self, io: I) -> (Requester<B>, impl Future<Output = ()>)
     where
         I: AsyncRead + AsyncWrite,
@@ -59,6 +62,7 @@ impl Config {
 }
 
 impl Default for Config {
+    #[inline]
     fn default() -> Self {
         Self {
             parser: Parser::new(),
@@ -180,6 +184,7 @@ pub struct Requester<B> {
 }
 
 impl<B> Requester<B> {
+    #[inline]
     pub async fn send(&self, req: Request<B>) -> Result<Response<FetchBody>, Error>
     where
         B: IntoBody,
@@ -194,16 +199,19 @@ pub struct FetchBody {
 }
 
 impl FetchBody {
+    #[inline]
     pub async fn frame(&self) -> Result<Bytes, Error> {
         self.fetch.recv().await.map_err(|_| Error::Closed)?
     }
 
-    pub fn body_stream(self) -> BodyStream {
+    #[inline]
+    pub fn stream(self) -> BodyStream {
         BodyStream { fetch: self.fetch }
     }
 }
 
 impl fmt::Debug for FetchBody {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("FetchBody").finish()
     }
@@ -219,6 +227,7 @@ pin_project_lite::pin_project! {
 impl Stream for BodyStream {
     type Item = Result<Bytes, Error>;
 
+    #[inline]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         match self.project().fetch.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) if bytes.is_empty() => Poll::Ready(None),
@@ -249,9 +258,9 @@ mod tests {
     #[test]
     fn roundtrip_empty() -> Result<(), Error> {
         const REQUEST: [&str; 3] = ["GET / HTTP/1.1\r\n", "content-length: 0\r\n", "\r\n"];
-        const RESPONCE: [&str; 3] = ["HTTP/1.1 200 OK\r\n", "content-length: 0\r\n", "\r\n"];
+        const RESPONSE: [&str; 3] = ["HTTP/1.1 200 OK\r\n", "content-length: 0\r\n", "\r\n"];
 
-        let read = test::parts(RESPONCE.map(str::as_bytes));
+        let read = test::parts(RESPONSE.map(str::as_bytes));
         let mut write = vec![];
         let io = test::io(read, &mut write);
 
@@ -279,15 +288,15 @@ mod tests {
             REQUEST_BODY,
         ];
 
-        const RESPONCE_BODY: &str = "Hello, responce!";
-        const RESPONCE: [&str; 4] = [
+        const RESPONSE_BODY: &str = "Hello, response!";
+        const RESPONSE: [&str; 4] = [
             "HTTP/1.1 200 OK\r\n",
             "content-length: 16\r\n",
             "\r\n",
-            RESPONCE_BODY,
+            RESPONSE_BODY,
         ];
 
-        let read = test::parts(RESPONCE.map(str::as_bytes));
+        let read = test::parts(RESPONSE.map(str::as_bytes));
         let mut write = vec![];
         let io = test::io(read, &mut write);
 
@@ -298,7 +307,7 @@ mod tests {
             let mut res = reqs.send(req).await?;
 
             let body = res.body_mut().frame().await?;
-            assert_eq!(body, RESPONCE_BODY);
+            assert_eq!(body, RESPONSE_BODY);
 
             let empty = res.body_mut().frame().await?;
             assert!(empty.is_empty());
@@ -335,7 +344,7 @@ mod tests {
             "\r\n",
         ];
 
-        const RESPONCE: [&str; 14] = [
+        const RESPONSE: [&str; 14] = [
             "HTTP/1.1 200 OK\r\n",
             "transfer-encoding: chunked\r\n",
             "\r\n5\r\n",
@@ -352,7 +361,7 @@ mod tests {
             "\r\n",
         ];
 
-        let read = test::parts(RESPONCE.map(str::as_bytes));
+        let read = test::parts(RESPONSE.map(str::as_bytes));
         let mut write = vec![];
         let io = test::io(read, &mut write);
 

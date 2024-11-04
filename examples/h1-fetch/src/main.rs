@@ -67,7 +67,7 @@ async fn fetch(url: Url) -> Result<(), Error> {
         let host_value = HeaderValue::from_str(host).expect("the host should be valid");
         req.headers_mut().insert(header::HOST, host_value);
 
-        // print responce head
+        // print response head
         let res = reqs.send(req).await?;
         let version = res.version();
         let status = res.status();
@@ -78,7 +78,7 @@ async fn fetch(url: Url) -> Result<(), Error> {
 
         println!();
 
-        // print responce body
+        // print response body
         let body = res.body();
         let mut stdout = io::stdout();
         loop {
