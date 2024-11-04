@@ -226,15 +226,47 @@ impl Stream for BodyStream {
 
 #[cfg(test)]
 mod tests {
-    use {
-        super::*,
-        crate::fu::{io, parts},
-    };
+    use {super::*, crate::test, futures_lite::future};
+
+    fn run<C, R>(conn: C, reqs: R) -> Result<(), Error>
+    where
+        C: Future,
+        R: Future<Output = Result<(), Error>>,
+    {
+        async_io::block_on(future::or(
+            async {
+                conn.await;
+                Ok(())
+            },
+            reqs,
+        ))
+    }
+
+    #[test]
+    fn roundtrip_empty() -> Result<(), Error> {
+        const REQUEST: [&str; 3] = ["GET / HTTP/1.1\r\n", "content-length: 0\r\n", "\r\n"];
+        const RESPONCE: [&str; 3] = ["HTTP/1.1 200 OK\r\n", "content-length: 0\r\n", "\r\n"];
+
+        let read = test::parts(RESPONCE.map(str::as_bytes));
+        let mut write = vec![];
+        let io = test::io(read, &mut write);
+
+        let (reqs, conn) = Config::default().handshake(io);
+        run(conn, async {
+            let req = Request::new(());
+            let mut res = reqs.send(req).await?;
+
+            let empty = res.body_mut().frame().await?;
+            assert!(empty.is_empty());
+            Ok(())
+        })?;
+
+        assert_eq!(String::from_utf8(write), Ok(REQUEST.concat()));
+        Ok(())
+    }
 
     #[test]
     fn roundtrip_full() -> Result<(), Error> {
-        use futures_lite::future;
-
         const REQUEST_BODY: &str = "Hello, request!";
         const REQUEST: [&str; 4] = [
             "GET / HTTP/1.1\r\n",
@@ -251,29 +283,23 @@ mod tests {
             RESPONCE_BODY,
         ];
 
-        let read = parts::make(RESPONCE.map(str::as_bytes));
+        let read = test::parts(RESPONCE.map(str::as_bytes));
         let mut write = vec![];
-        let io = io::make(read, &mut write);
+        let io = test::io(read, &mut write);
 
         let (reqs, conn) = Config::default().handshake(io);
-        async_io::block_on(future::or(
-            async {
-                conn.await;
-                Ok::<_, Error>(())
-            },
-            async {
-                let body = REQUEST_BODY.as_bytes();
-                let req = Request::new(body);
-                let mut res = reqs.send(req).await?;
+        run(conn, async {
+            let body = REQUEST_BODY.as_bytes();
+            let req = Request::new(body);
+            let mut res = reqs.send(req).await?;
 
-                let body = res.body_mut().frame().await?;
-                assert_eq!(body, RESPONCE_BODY);
+            let body = res.body_mut().frame().await?;
+            assert_eq!(body, RESPONCE_BODY);
 
-                let empty = res.body_mut().frame().await?;
-                assert!(empty.is_empty());
-                Ok(())
-            },
-        ))?;
+            let empty = res.body_mut().frame().await?;
+            assert!(empty.is_empty());
+            Ok(())
+        })?;
 
         assert_eq!(String::from_utf8(write), Ok(REQUEST.concat()));
         Ok(())
@@ -283,7 +309,7 @@ mod tests {
     fn roundtrip_chunked() -> Result<(), Error> {
         use {
             crate::body::Chunked,
-            futures_lite::{future, stream, StreamExt},
+            futures_lite::{stream, StreamExt},
         };
 
         const CHUNKS: [&str; 5] = ["hello", "from", "the", "internet", ":3"];
@@ -322,30 +348,24 @@ mod tests {
             "\r\n",
         ];
 
-        let read = parts::make(RESPONCE.map(str::as_bytes));
+        let read = test::parts(RESPONCE.map(str::as_bytes));
         let mut write = vec![];
-        let io = io::make(read, &mut write);
+        let io = test::io(read, &mut write);
 
         let (reqs, conn) = Config::default().handshake(io);
-        async_io::block_on(future::or(
-            async {
-                conn.await;
-                Ok::<_, Error>(())
-            },
-            async {
-                let body = stream::iter(CHUNKS).map(str::as_bytes);
-                let req = Request::new(Chunked::new(body));
-                let mut res = reqs.send(req).await?;
-                for expected in CHUNKS {
-                    let chunk = res.body_mut().frame().await?;
-                    assert_eq!(chunk, expected);
-                }
+        run(conn, async {
+            let body = stream::iter(CHUNKS).map(str::as_bytes);
+            let req = Request::new(Chunked::new(body));
+            let mut res = reqs.send(req).await?;
+            for expected in CHUNKS {
+                let chunk = res.body_mut().frame().await?;
+                assert_eq!(chunk, expected);
+            }
 
-                let empty = res.body_mut().frame().await?;
-                assert!(empty.is_empty());
-                Ok(())
-            },
-        ))?;
+            let empty = res.body_mut().frame().await?;
+            assert!(empty.is_empty());
+            Ok(())
+        })?;
 
         assert_eq!(String::from_utf8(write), Ok(REQUEST.concat()));
         Ok(())
@@ -361,7 +381,7 @@ mod tests {
 
         let read: &[u8] = &[];
         let write = vec![];
-        let io = io::make(read, write);
+        let io = test::io(read, write);
         let (reqs, conn): (Requester<&[u8]>, _) = Config::default().handshake(io);
         assert_send(reqs);
         assert_send(conn);

@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn read_partial() -> Result<(), Error> {
-        use crate::fu::parts;
+        use crate::test;
 
         let cases = [
             (&["_", "_", "A"][..], "A", "__A"),
@@ -451,7 +451,7 @@ mod tests {
         ];
 
         for (reads, until, actual) in cases {
-            let parts = parts::make(reads.iter().copied().map(str::as_bytes));
+            let parts = test::parts(reads.iter().copied().map(str::as_bytes));
             let mut h = Handler::test(parts);
             let bytes = async_io::block_on(h.read_until(until.as_bytes()))?;
             assert_eq!(bytes, actual);

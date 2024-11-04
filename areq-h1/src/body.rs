@@ -63,15 +63,15 @@ pub enum Void {}
 
 impl Buf for Void {
     fn remaining(&self) -> usize {
-        unreachable!()
+        match *self {}
     }
 
     fn chunk(&self) -> &[u8] {
-        unreachable!()
+        match *self {}
     }
 
     fn advance(&mut self, _: usize) {
-        unreachable!()
+        match *self {}
     }
 }
 
