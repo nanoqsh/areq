@@ -1,5 +1,11 @@
 use {
-    crate::{client::Client, io::Io, proto::Serve, Error, Protocol, Request, Responce, Session},
+    crate::{
+        body::{self, Body, IntoBody, Kind},
+        client::Client,
+        io::Io,
+        proto::Serve,
+        Error, Protocol, Request, Responce, Session,
+    },
     bytes::{Buf, Bytes},
     futures_lite::{AsyncRead, AsyncWrite, Stream},
     h2::client,
@@ -19,12 +25,12 @@ pub struct H2 {
 impl Protocol for H2 {
     type Serve<B> = ServeH2<B>
     where
-        B: areq_h1::IntoBody;
+        B: IntoBody;
 
     async fn handshake<I, B>(&self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
-        B: areq_h1::IntoBody,
+        B: IntoBody,
     {
         let Session { io, .. } = se;
         let io = Io(Box::pin(io));
@@ -40,14 +46,14 @@ impl Protocol for H2 {
 
 pub struct ServeH2<B>
 where
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
-    send: client::SendRequest<Flow<<B::Body as areq_h1::Body>::Chunk>>,
+    send: client::SendRequest<Flow<B::Chunk>>,
 }
 
 impl<B> ServeH2<B>
 where
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
     async fn ready(&mut self) -> Result<(), h2::Error> {
         future::poll_fn(|cx| self.send.poll_ready(cx)).await
@@ -56,7 +62,7 @@ where
 
 impl<B> Clone for ServeH2<B>
 where
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
     fn clone(&self) -> Self {
         Self {
@@ -67,7 +73,7 @@ where
 
 impl<B> Serve<B> for ServeH2<B>
 where
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
     type Body = BodyH2;
 
@@ -82,8 +88,6 @@ where
     }
 
     async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
-        use areq_h1::{Body, Kind};
-
         let (head, body) = http::Request::from(req).into_parts();
         let header_req = http::Request::from_parts(head, ());
 
@@ -98,7 +102,7 @@ where
             Kind::Full => {
                 debug_assert!(!empty, "a full body must not be empty");
 
-                let full = areq_h1::take_full(body).await;
+                let full = body::take_full(body).await;
                 send_body.send_data(Flow::Next(full), true)?;
             }
             Kind::Chunked => 'stream: {

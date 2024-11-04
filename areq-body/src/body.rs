@@ -4,7 +4,8 @@ use {
 };
 
 pub trait IntoBody {
-    type Body: Body;
+    type Chunk: Buf;
+    type Body: Body<Chunk = Self::Chunk>;
 
     fn into_body(self) -> Self::Body;
 }
@@ -17,18 +18,20 @@ pub trait Body: Sized {
     #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Self::Chunk>;
 
-    // http2 extension
+    #[inline]
     fn is_end(&self) -> bool {
         matches!(Self::KIND, Kind::Empty)
     }
 }
 
-impl<C> IntoBody for C
+impl<B> IntoBody for B
 where
-    C: Body,
+    B: Body,
 {
+    type Chunk = B::Chunk;
     type Body = Self;
 
+    #[inline]
     fn into_body(self) -> Self::Body {
         self
     }
@@ -40,7 +43,8 @@ pub enum Kind {
     Chunked,
 }
 
-pub async fn take_full<B>(body: B) -> <B::Body as Body>::Chunk
+#[inline]
+pub async fn take_full<B>(body: B) -> B::Chunk
 where
     B: IntoBody,
 {
@@ -61,14 +65,17 @@ where
 pub enum Void {}
 
 impl Buf for Void {
+    #[inline]
     fn remaining(&self) -> usize {
         match *self {}
     }
 
+    #[inline]
     fn chunk(&self) -> &[u8] {
         match *self {}
     }
 
+    #[inline]
     fn advance(&mut self, _: usize) {
         match *self {}
     }
@@ -79,6 +86,7 @@ impl Body for () {
 
     type Chunk = Void;
 
+    #[inline]
     async fn chunk(&mut self) -> Option<Self::Chunk> {
         None
     }
@@ -87,6 +95,7 @@ impl Body for () {
 pub struct Full<B>(Option<B>);
 
 impl<B> Full<B> {
+    #[inline]
     pub fn new(body: B) -> Self {
         Self(Some(body))
     }
@@ -100,18 +109,22 @@ where
 
     type Chunk = B;
 
+    #[inline]
     async fn chunk(&mut self) -> Option<Self::Chunk> {
         self.0.take()
     }
 
+    #[inline]
     fn is_end(&self) -> bool {
         self.0.is_none()
     }
 }
 
 impl<'slice> IntoBody for &'slice [u8] {
+    type Chunk = <Self::Body as Body>::Chunk;
     type Body = Full<&'slice [u8]>;
 
+    #[inline]
     fn into_body(self) -> Self::Body {
         Full::new(self)
     }
@@ -127,12 +140,34 @@ where
 
     type Chunk = S::Item;
 
+    #[inline]
     async fn chunk(&mut self) -> Option<Self::Chunk> {
         self.0.next().await
     }
 
+    #[inline]
     fn is_end(&self) -> bool {
         let (_, upper_bound) = self.0.size_hint();
         upper_bound == Some(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slice() {
+        let src = "hi";
+        let actual = async_io::block_on(take_full(src.as_bytes()));
+        assert_eq!(actual, src.as_bytes());
+    }
+
+    #[test]
+    fn full() {
+        let src = "hi";
+        let full = Full::new(src.as_bytes());
+        let actual = async_io::block_on(take_full(full));
+        assert_eq!(actual, src.as_bytes());
     }
 }

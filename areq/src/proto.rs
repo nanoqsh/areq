@@ -1,5 +1,5 @@
 use {
-    crate::client::Client,
+    crate::{body::IntoBody, client::Client},
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     http::{request, response, HeaderMap, Method, StatusCode, Uri, Version},
@@ -59,7 +59,7 @@ impl Address {
 pub trait Protocol {
     type Serve<B>: Serve<B>
     where
-        B: areq_h1::IntoBody;
+        B: IntoBody;
 
     #[expect(async_fn_in_trait)]
     async fn handshake<I, B>(
@@ -68,7 +68,7 @@ pub trait Protocol {
     ) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
-        B: areq_h1::IntoBody;
+        B: IntoBody;
 }
 
 /// The [protocol](Protocol) error type.

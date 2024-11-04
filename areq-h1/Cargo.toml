@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+areq-body.workspace = true
 async-channel = "2.3"
 bytes.workspace = true
 futures-lite.workspace = true

@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["areq", "areq-h1", "examples/h1-fetch"]
+members = ["areq", "areq-body", "areq-h1", "examples/h1-fetch"]
 
 [workspace.dependencies]
 areq = { version = "=0.1.0", path = "areq" }
+areq-body = { version = "=0.1.0", path = "areq-body" }
 areq-h1 = { version = "=0.1.0", path = "areq-h1" }
 async-executor = "1.13"
 async-io = "2.3"

@@ -1,0 +1,14 @@
+[package]
+name = "areq-body"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytes.workspace = true
+futures-lite.workspace = true
+
+[dev-dependencies]
+async-io.workspace = true
+
+[lints]
+workspace = true

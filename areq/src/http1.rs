@@ -1,5 +1,6 @@
 use {
     crate::{
+        body::IntoBody,
         client::Client,
         proto::{Error, Protocol, Request, Responce, Serve, Session},
     },
@@ -22,12 +23,12 @@ pub struct H1 {
 impl Protocol for H1 {
     type Serve<B> = ServeH1<B>
     where
-        B: areq_h1::IntoBody;
+        B: IntoBody;
 
     async fn handshake<I, B>(&self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
-        B: areq_h1::IntoBody,
+        B: IntoBody,
     {
         let Session { io, addr } = se;
         let (reqs, conn) = self.conf.clone().handshake(io);
@@ -44,7 +45,7 @@ pub struct ServeH1<B> {
 
 impl<B> Serve<B> for ServeH1<B>
 where
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
     type Body = BodyH1;
 

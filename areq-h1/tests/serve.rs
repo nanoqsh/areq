@@ -43,7 +43,7 @@ fn serve() -> Result<(), Error> {
         tcp: TcpStream,
         payload: Vec<u32>,
     ) -> Result<Vec<u32>, Error> {
-        use areq_h1::{Config, Full};
+        use areq_h1::{body::Full, Config};
 
         let (reqs, conn) = Config::default().handshake(tcp);
         ex.spawn(conn).detach();

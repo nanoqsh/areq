@@ -1,4 +1,5 @@
 use crate::{
+    body::IntoBody,
     proto::{Error, Request, Responce, Serve},
     Protocol,
 };
@@ -6,12 +7,12 @@ use crate::{
 pub struct Client<P, B>(pub(crate) P::Serve<B>)
 where
     P: Protocol + ?Sized,
-    B: areq_h1::IntoBody;
+    B: IntoBody;
 
 impl<P, B> Client<P, B>
 where
     P: Protocol,
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
     pub async fn send(
         &mut self,
@@ -25,7 +26,7 @@ where
 impl<P, B> Clone for Client<P, B>
 where
     P: Protocol<Serve<B>: Clone>,
-    B: areq_h1::IntoBody,
+    B: IntoBody,
 {
     fn clone(&self) -> Self {
         Self(self.0.clone())
