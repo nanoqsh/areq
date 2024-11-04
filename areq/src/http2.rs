@@ -11,7 +11,7 @@ use {
     },
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct H2 {
     build: client::Builder,
 }

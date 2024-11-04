@@ -199,7 +199,7 @@ impl FetchBody {
     }
 
     pub fn body_stream(self) -> BodyStream {
-        BodyStream(Box::pin(self.fetch))
+        BodyStream { fetch: self.fetch }
     }
 }
 
@@ -209,14 +209,18 @@ impl fmt::Debug for FetchBody {
     }
 }
 
-// TODO: remove boxing
-pub struct BodyStream(Pin<Box<Receiver<Result<Bytes, Error>>>>);
+pin_project_lite::pin_project! {
+    pub struct BodyStream {
+        #[pin]
+        fetch: Receiver<Result<Bytes, Error>>,
+    }
+}
 
 impl Stream for BodyStream {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut self.0).poll_next(cx) {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        match self.project().fetch.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) if bytes.is_empty() => Poll::Ready(None),
             Poll::Ready(o) => Poll::Ready(o),
             Poll::Pending => Poll::Pending,
@@ -355,7 +359,7 @@ mod tests {
         let (reqs, conn) = Config::default().handshake(io);
         run(conn, async {
             let body = stream::iter(CHUNKS).map(str::as_bytes);
-            let req = Request::new(Chunked::new(body));
+            let req = Request::new(Chunked(body));
             let mut res = reqs.send(req).await?;
             for expected in CHUNKS {
                 let chunk = res.body_mut().frame().await?;

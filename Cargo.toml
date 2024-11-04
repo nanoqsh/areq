@@ -11,6 +11,7 @@ async-net = "2.0"
 bytes = "1.8"
 futures-lite = "2.4"
 http = "1.1"
+pin-project-lite = "0.2"
 url = "2.5"
 
 [workspace.lints.clippy]

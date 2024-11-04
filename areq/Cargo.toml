@@ -10,6 +10,7 @@ bytes.workspace = true
 futures-lite.workspace = true
 h2 = "0.4"
 http.workspace = true
+pin-project-lite.workspace = true
 tokio = "1.41"
 url.workspace = true
 

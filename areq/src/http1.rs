@@ -5,7 +5,7 @@ use {
     },
     areq_h1::Config,
     bytes::Bytes,
-    futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
+    futures_lite::{AsyncRead, AsyncWrite, Stream},
     http::{header, HeaderValue, Version},
     std::{
         future::Future,
@@ -14,7 +14,7 @@ use {
     },
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct H1 {
     conf: Config,
 }
@@ -62,22 +62,25 @@ where
     }
 
     async fn serve(&mut self, req: Request<B>) -> Result<Responce<Self::Body>, Error> {
-        let res = self
-            .reqs
-            .send(req.into())
-            .await?
-            .map(|body| BodyH1(body.body_stream()));
+        let res = self.reqs.send(req.into()).await?.map(|body| BodyH1 {
+            body: body.body_stream(),
+        });
 
         Ok(Responce::new(res))
     }
 }
 
-pub struct BodyH1(areq_h1::BodyStream);
+pin_project_lite::pin_project! {
+    pub struct BodyH1 {
+        #[pin]
+        body: areq_h1::BodyStream,
+    }
+}
 
 impl Stream for BodyH1 {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        self.0.poll_next(cx).map_err(Error::from)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.project().body.poll_next(cx).map_err(Error::from)
     }
 }

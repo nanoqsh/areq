@@ -257,20 +257,11 @@ impl<B> Responce<B> {
             task::{Context, Poll},
         };
 
-        struct Reader<S> {
-            stream: S,
-            bytes: Bytes,
-        }
-
-        impl<S> Reader<S> {
-            fn project(self: Pin<&mut Self>) -> (Pin<&mut S>, &mut Bytes) {
-                // SAFETY: don't move the self
-                let me = unsafe { self.get_unchecked_mut() };
-
-                // SAFETY: pin the stream back and don't move it later
-                let stream = unsafe { Pin::new_unchecked(&mut me.stream) };
-
-                (stream, &mut me.bytes)
+        pin_project_lite::pin_project! {
+            struct Reader<S> {
+                #[pin]
+                stream: S,
+                bytes: Bytes,
             }
         }
 
@@ -287,24 +278,24 @@ impl<B> Responce<B> {
                     return Poll::Ready(Ok(0));
                 }
 
-                let (mut stream, bytes) = self.project();
+                let me = self.project();
 
-                if bytes.is_empty() {
-                    match stream.as_mut().poll_next(cx) {
+                if me.bytes.is_empty() {
+                    match me.stream.poll_next(cx) {
                         Poll::Ready(Some(Ok(b))) if b.is_empty() => {
                             // if next bytes is empty skip this iteration and reschedule
                             cx.waker().wake_by_ref();
                             return Poll::Pending;
                         }
-                        Poll::Ready(Some(Ok(b))) => *bytes = b,
+                        Poll::Ready(Some(Ok(b))) => *me.bytes = b,
                         Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
                         Poll::Ready(None) => return Poll::Ready(Ok(0)),
                         Poll::Pending => return Poll::Pending,
                     }
                 }
 
-                let n = usize::min(bytes.len(), buf.len());
-                let head = bytes.split_to(n);
+                let n = usize::min(me.bytes.len(), buf.len());
+                let head = me.bytes.split_to(n);
                 buf[..n].copy_from_slice(&head);
                 Poll::Ready(Ok(n))
             }

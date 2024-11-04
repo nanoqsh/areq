@@ -1,7 +1,6 @@
 use {
     bytes::Buf,
     futures_lite::{Stream, StreamExt},
-    std::pin::Pin,
 };
 
 pub trait IntoBody {
@@ -118,18 +117,11 @@ impl<'slice> IntoBody for &'slice [u8] {
     }
 }
 
-// TODO: remove boxing
-pub struct Chunked<S>(Pin<Box<S>>);
-
-impl<S> Chunked<S> {
-    pub fn new(stream: S) -> Self {
-        Self(Box::pin(stream))
-    }
-}
+pub struct Chunked<S>(pub S);
 
 impl<S> Body for Chunked<S>
 where
-    S: Stream<Item: Buf>,
+    S: Stream<Item: Buf> + Unpin,
 {
     const KIND: Kind = Kind::Chunked;
 

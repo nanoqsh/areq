@@ -9,6 +9,7 @@ bytes.workspace = true
 futures-lite.workspace = true
 http.workspace = true
 httparse = "1.9"
+pin-project-lite.workspace = true
 
 [dev-dependencies]
 async-executor.workspace = true
