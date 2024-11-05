@@ -1,7 +1,8 @@
 [package]
 name = "areq"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+description = "Async runtime independent HTTP requests"
 
 [dependencies]
 areq-body.workspace = true

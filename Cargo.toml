@@ -8,10 +8,22 @@ members = [
     "examples/h1-fetch",
 ]
 
+[workspace.package]
+version = "0.1.0-alpha"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+authors = ["nanoqsh"]
+keywords = ["web", "http", "net"]
+categories = ["asynchronous", "network-programming"]
+documentation = "https://docs.rs/areq"
+readme = "README.md"
+repository = "https://github.com/nanoqsh/areq"
+rust-version = "1.82"
+
 [workspace.dependencies]
-areq = { version = "=0.1.0", path = "areq" }
-areq-body = { version = "=0.1.0", path = "areq-body" }
-areq-h1 = { version = "=0.1.0", path = "areq-h1" }
+areq = { version = "=0.1.0-alpha", path = "areq" }
+areq-body = { version = "=0.1.0-alpha", path = "areq-body" }
+areq-h1 = { version = "=0.1.0-alpha", path = "areq-h1" }
 async-executor = "1.13"
 async-io = "2.3"
 async-net = "2.0"
