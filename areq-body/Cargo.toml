@@ -1,7 +1,9 @@
 [package]
 name = "areq-body"
+description = "HTTP body types and traits as part of areq crate"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 bytes.workspace = true

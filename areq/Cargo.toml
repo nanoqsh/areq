@@ -1,8 +1,9 @@
 [package]
 name = "areq"
+description = "Async runtime independent HTTP requests"
 version.workspace = true
 edition.workspace = true
-description = "Async runtime independent HTTP requests"
+license.workspace = true
 
 [dependencies]
 areq-body.workspace = true
