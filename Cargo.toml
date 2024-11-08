@@ -15,8 +15,6 @@ license = "Apache-2.0 OR MIT"
 authors = ["nanoqsh"]
 keywords = ["web", "http", "net"]
 categories = ["asynchronous", "network-programming"]
-documentation = "https://docs.rs/areq"
-readme = "README.md"
 repository = "https://github.com/nanoqsh/areq"
 rust-version = "1.82"
 

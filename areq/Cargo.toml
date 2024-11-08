@@ -1,9 +1,15 @@
 [package]
 name = "areq"
 description = "Async runtime independent HTTP requests"
+documentation = "https://docs.rs/areq"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 areq-body.workspace = true

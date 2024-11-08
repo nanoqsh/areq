@@ -1,9 +1,16 @@
 [package]
 name = "areq-h1"
 description = "An implementation of HTTP/1.1 as part of areq crate"
+documentation = "https://docs.rs/areq-h1"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 areq-body.workspace = true
