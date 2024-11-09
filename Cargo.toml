@@ -32,6 +32,7 @@ pin-project-lite = "0.2"
 url = "2.5"
 
 [workspace.lints.clippy]
+large-futures = "deny"
 manual-assert = "deny"
 match-wildcard-for-single-variants = "deny"
 missing-assert-message = "deny"
