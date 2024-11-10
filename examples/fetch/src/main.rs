@@ -78,11 +78,11 @@ async fn fetch(url: Url) -> Result<(), Error> {
         println!();
 
         // print response body
-        let body = pin::pin!(BufReader::new(res.body_reader()));
-        let mut lines = body.lines();
+        let body = BufReader::new(res.body_reader());
+        let mut lines = pin::pin!(body.lines());
         let mut stdout = io::stdout();
-        while let Some(line) = lines.next().await {
-            stdout.write_all(line?.as_bytes())?;
+        while let Some(line) = lines.try_next().await? {
+            stdout.write_all(line.as_bytes())?;
             stdout.flush()?;
         }
 
