@@ -1,6 +1,10 @@
 use {
     bytes::Buf,
     futures_lite::{Stream, StreamExt},
+    std::{
+        future::{self, Future, IntoFuture},
+        pin::Pin,
+    },
 };
 
 pub trait IntoBody {
@@ -116,6 +120,40 @@ where
     #[inline]
     fn is_end(&self) -> bool {
         self.0.is_none()
+    }
+}
+
+pub struct Deferred<F>(Option<F>);
+
+impl<F> Deferred<F> {
+    #[inline]
+    pub fn new<U>(fu: U) -> Self
+    where
+        U: IntoFuture<IntoFuture = F>,
+    {
+        Self(Some(fu.into_future()))
+    }
+}
+
+impl<F> Body for Deferred<F>
+where
+    F: Future<Output: Buf> + Unpin,
+{
+    const KIND: Kind = Kind::Full;
+
+    type Chunk = F::Output;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Self::Chunk> {
+        match &mut self.0 {
+            Some(fu) => {
+                let mut fu = Pin::new(fu);
+                let res = future::poll_fn(|cx| fu.as_mut().poll(cx)).await;
+                self.0 = None;
+                Some(res)
+            }
+            None => None,
+        }
     }
 }
 
