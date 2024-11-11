@@ -155,6 +155,11 @@ where
             None => None,
         }
     }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        self.0.is_none()
+    }
 }
 
 impl<'slice> IntoBody for &'slice [u8] {
@@ -205,6 +210,14 @@ mod tests {
         let src = "hi";
         let full = Full::new(src.as_bytes());
         let actual = async_io::block_on(take_full(full));
+        assert_eq!(actual, src.as_bytes());
+    }
+
+    #[test]
+    fn deferred() {
+        let src = "hi";
+        let deferred = Deferred::new(future::ready(src.as_bytes()));
+        let actual = async_io::block_on(take_full(deferred));
         assert_eq!(actual, src.as_bytes());
     }
 }
