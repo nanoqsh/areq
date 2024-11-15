@@ -1,0 +1,20 @@
+[package]
+name = "serve"
+version = "0.0.0"
+edition.workspace = true
+
+[dependencies]
+areq.workspace = true
+async-channel.workspace = true
+async-executor.workspace = true
+async-io.workspace = true
+async-net.workspace = true
+smol-axum = { version = "0.1", features = ["async-net"] }
+
+[dependencies.axum]
+version = "0.7"
+default-features = false
+features = ["http1", "http2"]
+
+[lints]
+workspace = true
