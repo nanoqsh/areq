@@ -9,12 +9,14 @@ async-channel.workspace = true
 async-executor.workspace = true
 async-io.workspace = true
 async-net.workspace = true
-smol-axum = { version = "0.1", features = ["async-net"] }
+hyper = { version = "1.5.0", features = ["http1", "server"] }
+smol-hyper = { version = "0.1.1" }
+tower = { version = "0.5.1", features = ["util"] }
 
 [dependencies.axum]
 version = "0.7"
 default-features = false
-features = ["http1", "http2"]
+features = ["http1"]
 
 [lints]
 workspace = true
