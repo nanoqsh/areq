@@ -1,5 +1,5 @@
 use {
-    areq::url::Url,
+    areq::url::{Position, Url},
     std::{
         env,
         io::{self, Error, Write},
@@ -20,11 +20,6 @@ fn main() {
             return;
         }
     };
-
-    if url.scheme() != "http" {
-        eprintln!("only http scheme is supported");
-        return;
-    }
 
     if let Err(e) = async_io::block_on(fetch(url)) {
         eprintln!("io error: {e}");
@@ -56,13 +51,11 @@ async fn fetch(url: Url) -> Result<(), Error> {
 
     let (mut client, conn) = H2::default().handshake(se).await?;
     let handle_io = async {
-        // this future will only be complete when `reqs` is dropped
         conn.await;
         Ok::<_, Error>(())
     };
 
-    let uri: Uri = url
-        .authority()
+    let uri: Uri = url[..Position::AfterPort]
         .parse()
         .expect("the url path should be valid");
 
