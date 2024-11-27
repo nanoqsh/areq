@@ -35,7 +35,7 @@ async fn fetch(url: Url) -> Result<(), Error> {
     use {
         areq::{
             http::{Method, Uri},
-            http1::H1,
+            http2::H2,
             url::Host,
             Address, Protocol, Request, Session,
         },
@@ -54,17 +54,21 @@ async fn fetch(url: Url) -> Result<(), Error> {
         },
     };
 
-    let (mut client, conn) = H1::default().handshake(se).await?;
+    let (mut client, conn) = H2::default().handshake(se).await?;
     let handle_io = async {
         // this future will only be complete when `reqs` is dropped
         conn.await;
         Ok::<_, Error>(())
     };
 
-    let path: Uri = url.path().parse().expect("the url path should be valid");
+    let uri: Uri = url
+        .authority()
+        .parse()
+        .expect("the url path should be valid");
+
     let send_request = async move {
         // create new request with empty body
-        let req = Request::new(path, Method::GET, ());
+        let req = Request::new(uri, Method::GET, ());
 
         // print response head
         let res = client.send(req).await?;

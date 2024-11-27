@@ -32,10 +32,11 @@ impl Protocol for H2 {
         I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
-        let Session { io, .. } = se;
+        let Session { io, addr } = se;
         let io = Io(Box::pin(io));
         let (send, conn) = self.build.handshake(io).await?;
-        let client = Client(ServeH2 { send });
+        let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
+        let client = Client(ServeH2 { send, host });
         let conn = async {
             _ = conn.await;
         };
@@ -49,6 +50,7 @@ where
     B: IntoBody,
 {
     send: client::SendRequest<Flow<B::Chunk>>,
+    host: HeaderValue,
 }
 
 impl<B> ServeH2<B>
@@ -67,6 +69,7 @@ where
     fn clone(&self) -> Self {
         Self {
             send: self.send.clone(),
+            host: self.host.clone(),
         }
     }
 }
@@ -79,6 +82,9 @@ where
 
     fn prepare(&self, req: &mut Request<B>) {
         *req.version_mut() = Version::HTTP_2;
+
+        // http/2 requires a host header
+        req.headers_mut().insert(header::HOST, self.host.clone());
 
         // insert default accept header if it's missing
         let default_accept = const { HeaderValue::from_static("*/*") };

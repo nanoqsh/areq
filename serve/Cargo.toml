@@ -9,7 +9,8 @@ async-channel.workspace = true
 async-executor.workspace = true
 async-io.workspace = true
 async-net.workspace = true
-hyper = { version = "1.5.0", features = ["http1", "server"] }
+futures-lite.workspace = true
+hyper = { version = "1.5.0", features = ["http1", "http2", "server"] }
 smol-hyper = { version = "0.1.1" }
 tower = { version = "0.5.1", features = ["util"] }
 

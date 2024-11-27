@@ -1,14 +1,20 @@
 use {
     async_executor::Executor,
-    async_net::TcpListener,
+    async_net::{TcpListener, TcpStream},
     axum::{
         body::Body,
         http::{Request, Response},
         routing, Router,
     },
+    hyper::{
+        body::Incoming,
+        server::conn::{http1, http2},
+        service::Service,
+    },
     std::{
         convert::Infallible, future::Future, io::Error, net::Ipv4Addr, pin::Pin, sync::Arc, thread,
     },
+    tower::{util::Oneshot, ServiceExt},
 };
 
 fn main() {
@@ -19,12 +25,36 @@ fn main() {
     }
 
     async fn run(ex: Arc<Executor<'_>>) -> Result<(), Error> {
-        let (ip, port) = (Ipv4Addr::LOCALHOST, 3000);
-        let tcp = TcpListener::bind((ip, port)).await?;
-        println!("listening on http://{ip}:{port}");
+        use futures_lite::future;
 
-        let app = Router::new().route("/", routing::get(handler));
-        serve(ex, tcp, app).await
+        let router = Router::new().route("/", routing::get(handler));
+
+        let http1 = {
+            let router = router.clone();
+            async {
+                let (ip, port) = (Ipv4Addr::LOCALHOST, 3000);
+                let tcp = TcpListener::bind((ip, port)).await?;
+                println!("serve http1 on {ip}:{port}");
+
+                let h1 = H1 { router };
+                serve(&ex, tcp, h1).await
+            }
+        };
+
+        let http2 = async {
+            let (ip, port) = (Ipv4Addr::LOCALHOST, 3001);
+            let tcp = TcpListener::bind((ip, port)).await?;
+            println!("serve http2 on {ip}:{port}");
+
+            let h2 = H2 {
+                router,
+                ex: Arc::clone(&ex),
+            };
+
+            serve(&ex, tcp, h2).await
+        };
+
+        future::or(http1, http2).await
     }
 
     let n_threads = 2;
@@ -33,35 +63,68 @@ fn main() {
     }
 }
 
-async fn serve(ex: Arc<Executor<'_>>, tcp: TcpListener, app: Router) -> Result<(), Error> {
-    use {
-        hyper::{body::Incoming, server::conn::http1::Builder, service::Service},
-        smol_hyper::rt::{FuturesIo, SmolTimer},
-        tower::{util::Oneshot, ServiceExt},
-    };
+trait Serve {
+    fn serve(self, stream: TcpStream) -> impl Future<Output = Result<(), Error>> + Send;
+}
 
-    struct App(Router);
+#[derive(Clone)]
+struct H1 {
+    router: Router,
+}
 
-    impl Service<Request<Incoming>> for App {
-        type Response = Response<Body>;
-        type Error = Infallible;
-        type Future = Oneshot<Router, Request<Incoming>>;
+impl Serve for H1 {
+    async fn serve(self, stream: TcpStream) -> Result<(), Error> {
+        use smol_hyper::rt::{FuturesIo, SmolTimer};
 
-        fn call(&self, req: Request<Incoming>) -> Self::Future {
-            self.0.clone().oneshot(req)
-        }
-    }
-
-    loop {
-        let (stream, _) = tcp.accept().await?;
         let io = FuturesIo::new(stream);
-        let app = app.clone();
-        let task = ex.spawn(async {
-            let serve = Builder::new()
-                .timer(SmolTimer::new())
-                .serve_connection(io, App(app));
+        http1::Builder::new()
+            .timer(SmolTimer::new())
+            .serve_connection(io, App(self.router))
+            .await
+            .map_err(Error::other)
+    }
+}
 
-            if let Err(e) = serve.await {
+#[derive(Clone)]
+struct H2<'ex> {
+    router: Router,
+    ex: Arc<Executor<'ex>>,
+}
+
+impl Serve for H2<'_> {
+    async fn serve(self, stream: TcpStream) -> Result<(), Error> {
+        use smol_hyper::rt::{FuturesIo, SmolExecutor, SmolTimer};
+
+        let io = FuturesIo::new(stream);
+        http2::Builder::new(SmolExecutor::new(self.ex))
+            .timer(SmolTimer::new())
+            .serve_connection(io, App(self.router))
+            .await
+            .map_err(Error::other)
+    }
+}
+
+struct App(Router);
+
+impl Service<Request<Incoming>> for App {
+    type Response = Response<Body>;
+    type Error = Infallible;
+    type Future = Oneshot<Router, Request<Incoming>>;
+
+    fn call(&self, req: Request<Incoming>) -> Self::Future {
+        self.0.clone().oneshot(req)
+    }
+}
+
+async fn serve<'ex, S>(ex: &Executor<'ex>, tcp: TcpListener, serve: S) -> Result<(), Error>
+where
+    S: Serve + Clone + Send + 'ex,
+{
+    loop {
+        let serve = serve.clone();
+        let (stream, _) = tcp.accept().await?;
+        let task = ex.spawn(async {
+            if let Err(e) = serve.serve(stream).await {
                 eprintln!("hyper error: {e}");
             }
         });
