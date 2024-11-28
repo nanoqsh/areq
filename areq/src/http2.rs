@@ -81,6 +81,11 @@ where
     type Body = BodyH2;
 
     fn prepare(&self, req: &mut Request<B>) {
+        debug_assert!(
+            req.uri().scheme().is_some(),
+            "the request must have an uri scheme for http2",
+        );
+
         *req.version_mut() = Version::HTTP_2;
 
         // http/2 requires a host header

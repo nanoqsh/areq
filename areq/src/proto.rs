@@ -172,6 +172,10 @@ impl<B> Request<B> {
         &mut self.head.method
     }
 
+    pub fn uri(&self) -> &Uri {
+        &self.head.uri
+    }
+
     pub fn headers(&self) -> &HeaderMap {
         &self.head.headers
     }
