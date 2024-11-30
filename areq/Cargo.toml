@@ -20,7 +20,7 @@ futures-lite.workspace = true
 h2 = "0.4"
 http.workspace = true
 pin-project-lite.workspace = true
-tokio = "1.41"
+tokio = "1"
 url.workspace = true
 
 [lints]
