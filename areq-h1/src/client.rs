@@ -246,7 +246,7 @@ mod tests {
         C: Future,
         R: Future<Output = Result<(), Error>>,
     {
-        async_io::block_on(future::or(
+        future::block_on(future::or(
             async {
                 conn.await;
                 Ok(())

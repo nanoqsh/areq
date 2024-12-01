@@ -7,7 +7,6 @@ edition.workspace = true
 areq.workspace = true
 async-channel.workspace = true
 async-executor.workspace = true
-async-io.workspace = true
 async-net.workspace = true
 futures-lite.workspace = true
 hyper = { version = "1.5", features = ["http1", "http2", "server"] }

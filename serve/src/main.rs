@@ -6,6 +6,7 @@ use {
         http::{Request, Response},
         routing, Router,
     },
+    futures_lite::future,
     hyper::{
         body::Incoming,
         server::conn::{http1, http2},
@@ -141,11 +142,11 @@ where
     let (stop, wait) = async_channel::unbounded::<Infallible>();
     thread::scope(|scope| {
         for _ in 0..n_threads {
-            scope.spawn(|| async_io::block_on(ex.run(wait.recv())));
+            scope.spawn(|| future::block_on(ex.run(wait.recv())));
         }
 
         let main = f(Arc::clone(&ex));
-        let result = async_io::block_on(ex.run(main));
+        let result = future::block_on(ex.run(main));
         drop(stop);
         result
     })

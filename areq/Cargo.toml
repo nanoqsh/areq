@@ -14,7 +14,6 @@ rust-version.workspace = true
 [dependencies]
 areq-body.workspace = true
 areq-h1.workspace = true
-async-io.workspace = true
 bytes.workspace = true
 futures-lite.workspace = true
 h2 = "0.4"

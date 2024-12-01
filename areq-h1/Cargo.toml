@@ -23,7 +23,6 @@ pin-project-lite.workspace = true
 
 [dev-dependencies]
 async-executor.workspace = true
-async-io.workspace = true
 async-net.workspace = true
 hyper = { version = "1", features = ["http1", "server"] }
 http-body-util = "0.1"

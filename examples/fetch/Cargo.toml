@@ -5,7 +5,6 @@ edition.workspace = true
 
 [dependencies]
 areq.workspace = true
-async-io.workspace = true
 async-net.workspace = true
 futures-lite.workspace = true
 

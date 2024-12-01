@@ -333,7 +333,7 @@ impl<B> From<http::Response<B>> for Response<B> {
 mod tests {
     use {
         super::*,
-        futures_lite::{io, stream, AsyncReadExt},
+        futures_lite::{future, io, stream, AsyncReadExt},
     };
 
     #[test]
@@ -342,7 +342,7 @@ mod tests {
             .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
 
         let res = Response::new(http::Response::new(body));
-        let actual: Vec<_> = async_io::block_on(
+        let actual: Vec<_> = future::block_on(
             res.body()
                 .map(|res| res.expect("all parts is ok"))
                 .collect(),
@@ -358,7 +358,7 @@ mod tests {
 
         let res = Response::new(http::Response::new(body));
         let mut actual = vec![];
-        async_io::block_on(io::copy(res.body_reader(), &mut actual)).expect("all parts is ok");
+        future::block_on(io::copy(res.body_reader(), &mut actual)).expect("all parts is ok");
         assert_eq!(actual, b"foobarbaz");
     }
 
@@ -371,12 +371,12 @@ mod tests {
         let mut reader = res.body_reader();
 
         let mut buf = [0; 2];
-        let n = async_io::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
+        let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
         assert_eq!(n, 2);
         assert_eq!(&buf, b"fo");
 
         let mut buf = [0; 2];
-        let n = async_io::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
+        let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
         assert_eq!(n, 1);
         assert_eq!(&buf, b"o\0");
     }

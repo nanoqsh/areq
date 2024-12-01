@@ -1,5 +1,5 @@
 use {
-    futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite},
+    futures_lite::{future, AsyncRead, AsyncReadExt, AsyncWrite},
     std::{
         io::Error,
         pin::Pin,
@@ -60,7 +60,7 @@ fn read_from_parts() -> Result<(), Error> {
     let mut buf = [0; 6];
     let (foo, bar) = buf.split_at_mut(3);
     for buf in [foo, bar] {
-        let n = async_io::block_on(parts.read(buf))?;
+        let n = future::block_on(parts.read(buf))?;
         assert_eq!(n, buf.len());
     }
 

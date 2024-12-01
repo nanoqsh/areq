@@ -1,5 +1,6 @@
 use {
     areq::url::{Position, Url},
+    futures_lite::future,
     std::{
         env,
         io::{self, Error, Write},
@@ -21,7 +22,7 @@ fn main() {
         }
     };
 
-    if let Err(e) = async_io::block_on(fetch(url)) {
+    if let Err(e) = future::block_on(fetch(url)) {
         eprintln!("io error: {e}");
     }
 }

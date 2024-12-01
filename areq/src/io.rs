@@ -58,15 +58,18 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {
+        super::*,
+        futures_lite::future,
+        std::pin,
+        tokio::io::{AsyncReadExt, AsyncWriteExt},
+    };
 
     #[test]
     fn read() -> Result<(), Error> {
-        use {std::pin, tokio::io::AsyncReadExt};
-
         let mut buf = [0; 5];
         let mut io = pin::pin!(Io(&b"hello"[..]));
-        let n = async_io::block_on(io.read(&mut buf))?;
+        let n = future::block_on(io.read(&mut buf))?;
         assert_eq!(n, 5);
         assert_eq!(&buf, b"hello");
         Ok(())
@@ -74,11 +77,9 @@ mod tests {
 
     #[test]
     fn write() -> Result<(), Error> {
-        use {std::pin, tokio::io::AsyncWriteExt};
-
         let mut buf = vec![];
         let mut io = pin::pin!(Io(&mut buf));
-        let n = async_io::block_on(io.write(b"hello"))?;
+        let n = future::block_on(io.write(b"hello"))?;
         assert_eq!(n, 5);
         assert_eq!(buf, b"hello");
         Ok(())

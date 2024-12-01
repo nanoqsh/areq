@@ -196,12 +196,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {super::*, futures_lite::future};
 
     #[test]
     fn slice() {
         let src = "hi";
-        let actual = async_io::block_on(take_full(src.as_bytes()));
+        let actual = future::block_on(take_full(src.as_bytes()));
         assert_eq!(actual, src.as_bytes());
     }
 
@@ -209,7 +209,7 @@ mod tests {
     fn full() {
         let src = "hi";
         let full = Full::new(src.as_bytes());
-        let actual = async_io::block_on(take_full(full));
+        let actual = future::block_on(take_full(full));
         assert_eq!(actual, src.as_bytes());
     }
 
@@ -217,7 +217,7 @@ mod tests {
     fn deferred() {
         let src = "hi";
         let deferred = Deferred::new(future::ready(src.as_bytes()));
-        let actual = async_io::block_on(take_full(deferred));
+        let actual = future::block_on(take_full(deferred));
         assert_eq!(actual, src.as_bytes());
     }
 }

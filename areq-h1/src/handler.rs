@@ -317,7 +317,7 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {super::*, futures_lite::future};
 
     impl<I> Handler<I> {
         fn test(io: I) -> Self {
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn read_head() -> Result<(), Error> {
         let mut h = Handler::test(RESPONSE);
-        let head = async_io::block_on(h.read_header())?;
+        let head = future::block_on(h.read_header())?;
         assert_eq!(head, header());
         Ok(())
     }
@@ -414,7 +414,7 @@ mod tests {
 
         let mut h = Handler::test(BODY);
         let mut remaining = BODY.len();
-        let body = async_io::block_on(h.read_body(&mut remaining))?;
+        let body = future::block_on(h.read_body(&mut remaining))?;
         assert_eq!(body, BODY);
         assert_eq!(remaining, 0);
         Ok(())
@@ -423,11 +423,11 @@ mod tests {
     #[test]
     fn read_response() -> Result<(), Error> {
         let mut h = Handler::test(RESPONSE);
-        let head = async_io::block_on(h.read_header())?;
+        let head = future::block_on(h.read_header())?;
         assert_eq!(head, header());
 
         let mut remaining = 4;
-        let body = async_io::block_on(h.read_body(&mut remaining))?;
+        let body = future::block_on(h.read_body(&mut remaining))?;
         assert_eq!(body, b"body"[..]);
         assert_eq!(remaining, 0);
         assert!(h.read_buf.is_empty());
@@ -453,7 +453,7 @@ mod tests {
         for (reads, until, actual) in cases {
             let parts = test::parts(reads.iter().copied().map(str::as_bytes));
             let mut h = Handler::test(parts);
-            let bytes = async_io::block_on(h.read_until(until.as_bytes()))?;
+            let bytes = future::block_on(h.read_until(until.as_bytes()))?;
             assert_eq!(bytes, actual);
         }
 
@@ -479,7 +479,7 @@ mod tests {
 
         let mut write = vec![];
         let mut h = Handler::test(&mut write);
-        async_io::block_on(h.write_header(&req))?;
+        future::block_on(h.write_header(&req))?;
         assert_eq!(write, REQUEST);
         Ok(())
     }
@@ -489,7 +489,7 @@ mod tests {
         let mut h = Handler::test(RESPONSE);
         h.read_strategy = Strategy::Exact(2);
 
-        async_io::block_on(h.read_to_buf())?;
+        future::block_on(h.read_to_buf())?;
         assert_eq!(h.read_strategy.next(), 2);
         Ok(())
     }
@@ -500,7 +500,7 @@ mod tests {
         h.read_strategy = Strategy::Adaptive { next: 1, max: 10 };
 
         for n in [2, 4, 8, 10] {
-            async_io::block_on(h.read_to_buf())?;
+            future::block_on(h.read_to_buf())?;
             assert_eq!(h.read_strategy.next(), n);
         }
 

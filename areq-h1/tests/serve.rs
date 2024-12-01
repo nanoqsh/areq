@@ -2,6 +2,7 @@ use {
     async_executor::Executor,
     async_net::{TcpListener, TcpStream},
     bytes::{Buf, BufMut, Bytes, BytesMut},
+    futures_lite::future,
     http_body_util::Full,
     hyper::{body::Incoming, server::conn::http1::Builder, service, Request, Response},
     std::{io::Error, net::Ipv4Addr},
@@ -74,9 +75,7 @@ fn serve() -> Result<(), Error> {
     }
 
     let ex = Executor::new();
-    async_io::block_on(ex.run(async {
-        use futures_lite::future;
-
+    future::block_on(ex.run(async {
         let (send_addr, recv_addr) = async_channel::bounded(1);
         let server = async {
             let addr = (Ipv4Addr::LOCALHOST, 0);

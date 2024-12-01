@@ -15,8 +15,5 @@ rust-version.workspace = true
 bytes.workspace = true
 futures-lite.workspace = true
 
-[dev-dependencies]
-async-io.workspace = true
-
 [lints]
 workspace = true
