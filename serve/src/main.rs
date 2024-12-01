@@ -124,13 +124,13 @@ where
     loop {
         let serve = serve.clone();
         let (stream, _) = tcp.accept().await?;
-        let task = ex.spawn(async {
+        let task = async {
             if let Err(e) = serve.serve(stream).await {
                 eprintln!("hyper error: {e}");
             }
-        });
+        };
 
-        task.detach();
+        ex.spawn(task).detach();
     }
 }
 
