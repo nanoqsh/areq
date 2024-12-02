@@ -15,7 +15,12 @@ edition = "2021"
 license = "Apache-2.0 OR MIT"
 authors = ["nanoqsh"]
 keywords = ["web", "http", "net"]
-categories = ["asynchronous", "network-programming"]
+categories = [
+    "asynchronous",
+    "network-programming",
+    "web-programming",
+    "web-programming::http-client",
+]
 repository = "https://github.com/nanoqsh/areq"
 rust-version = "1.82"
 
