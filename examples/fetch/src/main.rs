@@ -1,53 +1,47 @@
 use {
-    areq::url::{Position, Url},
+    areq::http::{uri::Scheme, Method, Uri},
     futures_lite::future,
     std::{
         env,
         io::{self, Error, Write},
-        pin,
     },
 };
 
 fn main() {
-    let Some(url) = env::args().nth(1) else {
-        println!("usage: fetch <url>");
+    let Some(uri) = env::args().nth(1) else {
+        println!("usage: fetch <uri>");
         return;
     };
 
-    let url: Url = match url.parse() {
-        Ok(url) => url,
+    let uri: Uri = match uri.parse() {
+        Ok(uri) => uri,
         Err(e) => {
-            eprintln!("failed to parse url: {e}");
+            eprintln!("failed to parse uri: {e}");
             return;
         }
     };
 
-    if let Err(e) = future::block_on(fetch(url)) {
+    if uri.scheme() != Some(&Scheme::HTTP) {
+        eprintln!("only http scheme is supported");
+        return;
+    }
+
+    if let Err(e) = future::block_on(fetch(uri)) {
         eprintln!("io error: {e}");
     }
 }
 
-async fn fetch(url: Url) -> Result<(), Error> {
+async fn fetch(uri: Uri) -> Result<(), Error> {
     use {
-        areq::{
-            http::{Method, Uri},
-            http2::H2,
-            url::Host,
-            Address, Protocol, Request, Session,
-        },
+        areq::{http2::H2, Address, Protocol, Request, Session},
         async_net::TcpStream,
         futures_lite::{future, io::BufReader, AsyncBufReadExt, StreamExt},
     };
 
-    let host = url.host_str().expect("the url should have a host");
-    let port = url.port().unwrap_or(80);
+    let addr = Address::from_uri(&uri)?;
     let se = Session {
-        io: TcpStream::connect((host, port)).await?,
-        addr: Address {
-            host: Host::Domain(host.to_owned()),
-            port,
-            secure: false,
-        },
+        io: TcpStream::connect(addr.repr().as_ref()).await?,
+        addr,
     };
 
     let (mut client, conn) = H2::default().handshake(se).await?;
@@ -55,10 +49,6 @@ async fn fetch(url: Url) -> Result<(), Error> {
         conn.await;
         Ok::<_, Error>(())
     };
-
-    let uri: Uri = url[..Position::AfterPort]
-        .parse()
-        .expect("the url path should be valid");
 
     let send_request = async move {
         // create new request with empty body
@@ -76,8 +66,7 @@ async fn fetch(url: Url) -> Result<(), Error> {
         println!();
 
         // print response body
-        let body = BufReader::new(res.body_reader());
-        let mut lines = pin::pin!(body.lines());
+        let mut lines = BufReader::new(res.body_reader()).lines();
         let mut stdout = io::stdout();
         while let Some(line) = lines.try_next().await? {
             stdout.write_all(line.as_bytes())?;

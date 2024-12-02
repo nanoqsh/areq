@@ -2,12 +2,12 @@ use {
     crate::{body::IntoBody, client::Client},
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
-    http::{request, response, HeaderMap, Method, StatusCode, Uri, Version},
+    http::{request, response, uri::Scheme, HeaderMap, Method, StatusCode, Uri, Version},
     std::{
         borrow::Cow,
         error, fmt,
         future::Future,
-        io,
+        io::{self, ErrorKind},
         pin::Pin,
         task::{Context, Poll},
     },
@@ -28,9 +28,33 @@ pub struct Address {
 }
 
 impl Address {
+    /// Creates new address from [uri](Uri).
+    ///
+    /// # Errors
+    /// Returns [`InvalidUri`] if url is not valid.
+    pub fn from_uri(uri: &Uri) -> Result<Self, InvalidUri> {
+        let scheme = uri.scheme().ok_or(InvalidUri::NoScheme)?;
+        if scheme != &Scheme::HTTP && scheme != &Scheme::HTTPS {
+            return Err(InvalidUri::NonHttpScheme);
+        }
+
+        let host = uri
+            .host()
+            .and_then(|host| Host::parse(host).ok())
+            .ok_or(InvalidUri::Host)?;
+
+        let secure = scheme == &Scheme::HTTPS;
+        let port = uri
+            .port()
+            .map(|port| port.as_u16())
+            .unwrap_or(default_port(secure));
+
+        Ok(Self { host, port, secure })
+    }
+
     /// Returns a representation of the host and port based on the security protocol
     pub fn repr(&self) -> Cow<str> {
-        if self.port == self.default_port() {
+        if self.port == default_port(self.secure) {
             match &self.host {
                 Host::Domain(domain) => Cow::Borrowed(domain),
                 Host::Ipv4(ip) => Cow::Owned(ip.to_string()),
@@ -42,18 +66,43 @@ impl Address {
             Cow::Owned(format!("{host}:{port}"))
         }
     }
+}
 
-    fn default_port(&self) -> u16 {
-        const HTTP: u16 = 80;
-        const HTTPS: u16 = 443;
+fn default_port(secure: bool) -> u16 {
+    const HTTP: u16 = 80;
+    const HTTPS: u16 = 443;
 
-        if self.secure {
-            HTTPS
-        } else {
-            HTTP
+    if secure {
+        HTTPS
+    } else {
+        HTTP
+    }
+}
+
+#[derive(Debug)]
+pub enum InvalidUri {
+    NoScheme,
+    NonHttpScheme,
+    Host,
+}
+
+impl From<InvalidUri> for io::Error {
+    fn from(e: InvalidUri) -> Self {
+        io::Error::new(ErrorKind::InvalidInput, e)
+    }
+}
+
+impl fmt::Display for InvalidUri {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::NoScheme => write!(f, "no scheme"),
+            Self::NonHttpScheme => write!(f, "non http(s) scheme"),
+            Self::Host => write!(f, "invalid host"),
         }
     }
 }
+
+impl error::Error for InvalidUri {}
 
 /// Used HTTP protocol.
 pub trait Protocol {
