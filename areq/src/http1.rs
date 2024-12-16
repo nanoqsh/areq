@@ -21,7 +21,8 @@ pub struct H1 {
 }
 
 impl Protocol for H1 {
-    type Serve<B> = ServeH1<B>
+    type Serve<B>
+        = ServeH1<B>
     where
         B: IntoBody;
 
@@ -43,12 +44,7 @@ pub struct ServeH1<B> {
     host: HeaderValue,
 }
 
-impl<B> Serve<B> for ServeH1<B>
-where
-    B: IntoBody,
-{
-    type Body = BodyH1;
-
+impl<B> ServeH1<B> {
     fn prepare(&self, req: &mut Request<B>) {
         *req.version_mut() = Version::HTTP_11;
 
@@ -61,8 +57,17 @@ where
             .entry(header::ACCEPT)
             .or_insert(default_accept);
     }
+}
 
-    async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error> {
+impl<B> Serve<B> for ServeH1<B>
+where
+    B: IntoBody,
+{
+    type Body = BodyH1;
+
+    async fn serve(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
+        self.prepare(&mut req);
+
         let res = self.reqs.send(req.into()).await?.map(|body| BodyH1 {
             body: body.stream(),
         });

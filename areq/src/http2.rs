@@ -23,7 +23,8 @@ pub struct H2 {
 }
 
 impl Protocol for H2 {
-    type Serve<B> = ServeH2<B>
+    type Serve<B>
+        = ServeH2<B>
     where
         B: IntoBody;
 
@@ -57,6 +58,24 @@ impl<B> ServeH2<B>
 where
     B: IntoBody,
 {
+    fn prepare(&self, req: &mut Request<B>) {
+        debug_assert!(
+            req.uri().scheme().is_some(),
+            "the request must have an uri scheme for http2",
+        );
+
+        *req.version_mut() = Version::HTTP_2;
+
+        // http/2 requires a host header
+        req.headers_mut().insert(header::HOST, self.host.clone());
+
+        // insert default accept header if it's missing
+        let default_accept = const { HeaderValue::from_static("*/*") };
+        req.headers_mut()
+            .entry(header::ACCEPT)
+            .or_insert(default_accept);
+    }
+
     async fn ready(&mut self) -> Result<(), h2::Error> {
         future::poll_fn(|cx| self.send.poll_ready(cx)).await
     }
@@ -80,25 +99,9 @@ where
 {
     type Body = BodyH2;
 
-    fn prepare(&self, req: &mut Request<B>) {
-        debug_assert!(
-            req.uri().scheme().is_some(),
-            "the request must have an uri scheme for http2",
-        );
+    async fn serve(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
+        self.prepare(&mut req);
 
-        *req.version_mut() = Version::HTTP_2;
-
-        // http/2 requires a host header
-        req.headers_mut().insert(header::HOST, self.host.clone());
-
-        // insert default accept header if it's missing
-        let default_accept = const { HeaderValue::from_static("*/*") };
-        req.headers_mut()
-            .entry(header::ACCEPT)
-            .or_insert(default_accept);
-    }
-
-    async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error> {
         let (head, body) = http::Request::from(req).into_parts();
         let header_req = http::Request::from_parts(head, ());
 

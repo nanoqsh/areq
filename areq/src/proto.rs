@@ -88,7 +88,7 @@ pub enum InvalidUri {
 
 impl From<InvalidUri> for io::Error {
     fn from(e: InvalidUri) -> Self {
-        io::Error::new(ErrorKind::InvalidInput, e)
+        Self::new(ErrorKind::InvalidInput, e)
     }
 }
 
@@ -182,8 +182,6 @@ impl error::Error for Error {
 pub trait Serve<B> {
     type Body: BodyStream;
 
-    fn prepare(&self, req: &mut Request<B>);
-
     #[expect(async_fn_in_trait)]
     async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
 }
@@ -199,7 +197,7 @@ pub struct Request<B> {
 }
 
 impl<B> Request<B> {
-    pub fn new<U>(uri: U, method: Method, body: B) -> Self
+    pub fn new<U>(method: Method, uri: U, body: B) -> Self
     where
         U: Into<Uri>,
     {

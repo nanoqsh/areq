@@ -52,7 +52,7 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
 
     let send_request = async move {
         // create new request with empty body
-        let req = Request::new(uri, Method::GET, ());
+        let req = Request::new(Method::GET, uri, ());
 
         // print response head
         let res = client.send(req).await?;

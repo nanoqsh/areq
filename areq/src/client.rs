@@ -3,6 +3,9 @@ use crate::{
     proto::{Error, Protocol, Request, Response, Serve},
 };
 
+/// Client's incoming body stream.
+pub type Incoming<P, B> = <<P as Protocol>::Serve<B> as Serve<B>>::Body;
+
 pub struct Client<P, B>(pub(crate) P::Serve<B>)
 where
     P: Protocol + ?Sized,
@@ -14,11 +17,7 @@ where
     B: IntoBody,
 {
     #[inline]
-    pub async fn send(
-        &mut self,
-        mut req: Request<B>,
-    ) -> Result<Response<<P::Serve<B> as Serve<B>>::Body>, Error> {
-        self.0.prepare(&mut req);
+    pub async fn send(&mut self, req: Request<B>) -> Result<Response<Incoming<P, B>>, Error> {
         self.0.serve(req).await
     }
 }
