@@ -30,7 +30,7 @@ impl Handshake for Http1 {
         I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
-        let Session { io, addr } = se;
+        let Session { addr, io } = se;
         let (reqs, conn) = self.conf.handshake(io);
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
         let client = H1 { reqs, host };

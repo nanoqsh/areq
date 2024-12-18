@@ -16,8 +16,8 @@ use {
 
 /// The communication session between a client and a host.
 pub struct Session<I> {
-    pub io: I,
     pub addr: Address,
+    pub io: I,
 }
 
 /// The network address.
@@ -232,6 +232,16 @@ impl<B> Request<B> {
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
     }
+
+    pub fn map<F, C>(self, f: F) -> Request<C>
+    where
+        F: FnOnce(B) -> C,
+    {
+        Request {
+            head: self.head,
+            body: f(self.body),
+        }
+    }
 }
 
 impl<B> From<Request<B>> for http::Request<B> {
@@ -286,6 +296,16 @@ impl<B> Response<B> {
 
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
+    }
+
+    pub fn map<F, C>(self, f: F) -> Response<C>
+    where
+        F: FnOnce(B) -> C,
+    {
+        Response {
+            head: self.head,
+            body: f(self.body),
+        }
     }
 }
 

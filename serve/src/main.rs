@@ -33,7 +33,7 @@ fn main() {
         let http1 = {
             let router = router.clone();
             async {
-                let (ip, port) = (Ipv4Addr::LOCALHOST, 3000);
+                let (ip, port) = (Ipv4Addr::LOCALHOST, 3001);
                 let tcp = TcpListener::bind((ip, port)).await?;
                 println!("serve http1 on {ip}:{port}");
 
@@ -43,7 +43,7 @@ fn main() {
         };
 
         let http2 = async {
-            let (ip, port) = (Ipv4Addr::LOCALHOST, 3001);
+            let (ip, port) = (Ipv4Addr::LOCALHOST, 3002);
             let tcp = TcpListener::bind((ip, port)).await?;
             println!("serve http2 on {ip}:{port}");
 

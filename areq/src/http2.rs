@@ -32,7 +32,7 @@ impl Handshake for Http2 {
         I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
-        let Session { io, addr } = se;
+        let Session { addr, io } = se;
         let io = Io(Box::pin(io));
         let (send, conn) = self.build.handshake(io).await?;
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;

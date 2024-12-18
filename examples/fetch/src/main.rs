@@ -4,13 +4,24 @@ use {
     std::{
         env,
         io::{self, Error, Write},
+        pin,
     },
 };
 
 fn main() {
-    let Some(uri) = env::args().nth(1) else {
-        println!("usage: fetch <uri>");
+    let mut args = env::args().skip(1);
+    let (Some(proto), Some(uri)) = (args.next(), args.next()) else {
+        eprintln!("usage: fetch <proto> <uri>");
         return;
+    };
+
+    let proto = match proto.as_str() {
+        "http1" => Proto::Http1,
+        "http2" => Proto::Http2,
+        undefined => {
+            eprintln!("undefined http protocol: {undefined}");
+            return;
+        }
     };
 
     let uri: Uri = match uri.parse() {
@@ -26,25 +37,33 @@ fn main() {
         return;
     }
 
-    if let Err(e) = future::block_on(fetch(uri)) {
+    if let Err(e) = future::block_on(fetch(proto, uri)) {
         eprintln!("io error: {e}");
     }
 }
 
-async fn fetch(uri: Uri) -> Result<(), Error> {
+enum Proto {
+    Http1,
+    Http2,
+}
+
+async fn fetch(proto: Proto, uri: Uri) -> Result<(), Error> {
     use {
-        areq::{http2::Http2, Address, Client, Handshake, Request, Session},
+        areq::{http1::Http1, http2::Http2, or::Or, Address, Client, Handshake, Request, Session},
         async_net::TcpStream,
         futures_lite::{future, io::BufReader, AsyncBufReadExt, StreamExt},
     };
 
-    let addr = Address::from_uri(&uri)?;
-    let se = Session {
-        io: TcpStream::connect(addr.repr().as_ref()).await?,
-        addr,
+    let handshake = match proto {
+        Proto::Http1 => Or::lhs(Http1::default()),
+        Proto::Http2 => Or::rhs(Http2::default()),
     };
 
-    let (mut client, conn) = Http2::default().handshake(se).await?;
+    let addr = Address::from_uri(&uri)?;
+    let io = TcpStream::connect(addr.repr().as_ref()).await?;
+    let se = Session { addr, io };
+
+    let (mut client, conn) = handshake.handshake(se).await?;
     let handle_io = async {
         conn.await;
         Ok::<_, Error>(())
@@ -66,9 +85,11 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
         println!();
 
         // print response body
-        let mut lines = BufReader::new(res.body_reader()).lines();
+        let lines = BufReader::new(res.body_reader()).lines();
         let mut stdout = io::stdout();
-        while let Some(line) = lines.try_next().await? {
+
+        let mut stream = pin::pin!(lines);
+        while let Some(line) = stream.try_next().await? {
             stdout.write_all(line.as_bytes())?;
             stdout.flush()?;
         }
