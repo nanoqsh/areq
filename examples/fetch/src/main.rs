@@ -33,7 +33,7 @@ fn main() {
 
 async fn fetch(uri: Uri) -> Result<(), Error> {
     use {
-        areq::{http2::H2, Address, Protocol, Request, Session},
+        areq::{http2::Http2, Address, Client, Handshake, Request, Session},
         async_net::TcpStream,
         futures_lite::{future, io::BufReader, AsyncBufReadExt, StreamExt},
     };
@@ -44,7 +44,7 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
         addr,
     };
 
-    let (mut client, conn) = H2::default().handshake(se).await?;
+    let (mut client, conn) = Http2::default().handshake(se).await?;
     let handle_io = async {
         conn.await;
         Ok::<_, Error>(())

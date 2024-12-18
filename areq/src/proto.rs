@@ -1,5 +1,5 @@
 use {
-    crate::{body::IntoBody, client::Client},
+    crate::body::IntoBody,
     bytes::Bytes,
     futures_lite::{AsyncRead, AsyncWrite, Stream, StreamExt},
     http::{request, response, uri::Scheme, HeaderMap, Method, StatusCode, Uri, Version},
@@ -104,20 +104,22 @@ impl fmt::Display for InvalidUri {
 
 impl error::Error for InvalidUri {}
 
-/// Used HTTP protocol.
-pub trait Protocol {
-    type Serve<B>: Serve<B>
+/// The trait to establish a client session over an asynchronous connection.
+pub trait Handshake {
+    /// The client type returned by the handshake process.
+    type Client<B>: Client<B>
     where
         B: IntoBody;
 
+    /// Perform a handshake to establish a client session.
     #[expect(async_fn_in_trait)]
-    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
+    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
         B: IntoBody;
 }
 
-/// The [protocol](Protocol) error type.
+/// The [handshake](Handshake) error type.
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
@@ -179,11 +181,11 @@ impl error::Error for Error {
     }
 }
 
-pub trait Serve<B> {
+pub trait Client<B> {
     type Body: BodyStream;
 
     #[expect(async_fn_in_trait)]
-    async fn serve(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
+    async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
 }
 
 /// A body streaming trait alias.

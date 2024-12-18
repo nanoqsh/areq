@@ -1,8 +1,7 @@
 use {
     crate::{
         body::IntoBody,
-        client::Client,
-        proto::{Error, Protocol, Request, Response, Serve, Session},
+        proto::{Client, Error, Handshake, Request, Response, Session},
     },
     areq_h1::Config,
     bytes::Bytes,
@@ -16,17 +15,17 @@ use {
 };
 
 #[derive(Clone, Default)]
-pub struct H1 {
+pub struct Http1 {
     conf: Config,
 }
 
-impl Protocol for H1 {
-    type Serve<B>
-        = ServeH1<B>
+impl Handshake for Http1 {
+    type Client<B>
+        = H1<B>
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
+    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
         B: IntoBody,
@@ -34,17 +33,17 @@ impl Protocol for H1 {
         let Session { io, addr } = se;
         let (reqs, conn) = self.conf.handshake(io);
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
-        let client = Client(ServeH1 { reqs, host });
+        let client = H1 { reqs, host };
         Ok((client, conn))
     }
 }
 
-pub struct ServeH1<B> {
+pub struct H1<B> {
     reqs: areq_h1::Requester<B>,
     host: HeaderValue,
 }
 
-impl<B> ServeH1<B> {
+impl<B> H1<B> {
     fn prepare(&self, req: &mut Request<B>) {
         *req.version_mut() = Version::HTTP_11;
 
@@ -59,13 +58,13 @@ impl<B> ServeH1<B> {
     }
 }
 
-impl<B> Serve<B> for ServeH1<B>
+impl<B> Client<B> for H1<B>
 where
     B: IntoBody,
 {
     type Body = BodyH1;
 
-    async fn serve(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
+    async fn send(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
         self.prepare(&mut req);
 
         let res = self.reqs.send(req.into()).await?.map(|body| BodyH1 {

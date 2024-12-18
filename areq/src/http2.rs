@@ -1,10 +1,9 @@
 use {
     crate::{
         body::{self, Body, IntoBody, Kind},
-        client::Client,
         io::Io,
-        proto::Serve,
-        Error, Protocol, Request, Response, Session,
+        proto::Client,
+        Error, Handshake, Request, Response, Session,
     },
     bytes::{Buf, Bytes},
     futures_lite::{AsyncRead, AsyncWrite, Stream},
@@ -18,17 +17,17 @@ use {
 };
 
 #[derive(Clone, Default)]
-pub struct H2 {
+pub struct Http2 {
     build: client::Builder,
 }
 
-impl Protocol for H2 {
-    type Serve<B>
-        = ServeH2<B>
+impl Handshake for Http2 {
+    type Client<B>
+        = H2<B>
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Client<Self, B>, impl Future), Error>
+    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
     where
         I: AsyncRead + AsyncWrite,
         B: IntoBody,
@@ -37,7 +36,7 @@ impl Protocol for H2 {
         let io = Io(Box::pin(io));
         let (send, conn) = self.build.handshake(io).await?;
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
-        let client = Client(ServeH2 { send, host });
+        let client = H2 { send, host };
         let conn = async {
             _ = conn.await;
         };
@@ -46,7 +45,7 @@ impl Protocol for H2 {
     }
 }
 
-pub struct ServeH2<B>
+pub struct H2<B>
 where
     B: IntoBody,
 {
@@ -54,7 +53,7 @@ where
     host: HeaderValue,
 }
 
-impl<B> ServeH2<B>
+impl<B> H2<B>
 where
     B: IntoBody,
 {
@@ -81,7 +80,7 @@ where
     }
 }
 
-impl<B> Clone for ServeH2<B>
+impl<B> Clone for H2<B>
 where
     B: IntoBody,
 {
@@ -93,13 +92,13 @@ where
     }
 }
 
-impl<B> Serve<B> for ServeH2<B>
+impl<B> Client<B> for H2<B>
 where
     B: IntoBody,
 {
     type Body = BodyH2;
 
-    async fn serve(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
+    async fn send(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
         self.prepare(&mut req);
 
         let (head, body) = http::Request::from(req).into_parts();

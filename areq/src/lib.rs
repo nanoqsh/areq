@@ -1,4 +1,3 @@
-pub mod client;
 pub mod http1;
 pub mod http2;
 mod io;
@@ -10,7 +9,7 @@ pub mod body {
 
 pub use {
     crate::proto::{
-        Address, BodyStream, BoxedBody, Error, InvalidUri, Protocol, Request, Response, Serve,
+        Address, BodyStream, BoxedBody, Client, Error, Handshake, InvalidUri, Request, Response,
         Session,
     },
     http, url,
