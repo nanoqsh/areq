@@ -14,17 +14,15 @@ pub trait IntoBody {
     fn into_body(self) -> Self::Body;
 }
 
-pub trait Body: Sized {
-    const KIND: Kind;
+pub trait Body {
     type Chunk: Buf;
 
     #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Self::Chunk>;
 
-    #[inline]
-    fn is_end(&self) -> bool {
-        matches!(Self::KIND, Kind::Empty)
-    }
+    fn kind(&self) -> Kind;
+
+    fn is_end(&self) -> bool;
 }
 
 impl<B> IntoBody for B
@@ -51,12 +49,8 @@ pub async fn take_full<B>(body: B) -> B::Chunk
 where
     B: IntoBody,
 {
-    assert!(
-        matches!(B::Body::KIND, Kind::Full),
-        "body type must be full",
-    );
-
     let mut body = body.into_body();
+    debug_assert!(matches!(body.kind(), Kind::Full), "body type must be full");
     debug_assert!(!body.is_end(), "the body must have only one chunk");
 
     let chunk = body.chunk().await.expect("full body should have content");
@@ -85,13 +79,21 @@ impl Buf for Void {
 }
 
 impl Body for () {
-    const KIND: Kind = Kind::Empty;
-
     type Chunk = Void;
 
     #[inline]
     async fn chunk(&mut self) -> Option<Self::Chunk> {
         None
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Empty
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        true
     }
 }
 
@@ -108,13 +110,16 @@ impl<B> Body for Full<B>
 where
     B: Buf,
 {
-    const KIND: Kind = Kind::Full;
-
     type Chunk = B;
 
     #[inline]
     async fn chunk(&mut self) -> Option<Self::Chunk> {
         self.0.take()
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Full
     }
 
     #[inline]
@@ -139,8 +144,6 @@ impl<F> Body for Deferred<F>
 where
     F: Future<Output: Buf> + Unpin,
 {
-    const KIND: Kind = Kind::Full;
-
     type Chunk = F::Output;
 
     #[inline]
@@ -154,6 +157,11 @@ where
             }
             None => None,
         }
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Full
     }
 
     #[inline]
@@ -178,13 +186,16 @@ impl<S> Body for Chunked<S>
 where
     S: Stream<Item: Buf> + Unpin,
 {
-    const KIND: Kind = Kind::Chunked;
-
     type Chunk = S::Item;
 
     #[inline]
     async fn chunk(&mut self) -> Option<Self::Chunk> {
         self.0.next().await
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Chunked
     }
 
     #[inline]

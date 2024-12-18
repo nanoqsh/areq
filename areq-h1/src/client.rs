@@ -86,9 +86,11 @@ where
     while let Ok(req) = conn.recv_req.recv().await {
         let process = async {
             let (parts, body) = req.into_parts();
-            let mut head = Request::from_parts(parts, ());
 
-            match B::Body::KIND {
+            let mut head = Request::from_parts(parts, ());
+            let mut body = body.into_body();
+
+            match body.kind() {
                 Kind::Empty => {
                     let zero_len = const { HeaderValue::from_static("0") };
 
@@ -114,7 +116,6 @@ where
                     headers::insert_chunked_encoding(head.headers_mut());
 
                     conn.io.write_header(&head).await?;
-                    let mut body = body.into_body();
                     while let Some(chunk) = body.chunk().await {
                         conn.io.write_chunk(chunk.chunk()).await?;
                         conn.io.flush().await?;

@@ -110,7 +110,7 @@ where
         self.ready().await?;
         let (resfu, mut send_body) = self.send.send_request(header_req, empty)?;
 
-        match B::Body::KIND {
+        match body.kind() {
             Kind::Empty => debug_assert!(empty, "an empty body must be empty"),
             Kind::Full => {
                 debug_assert!(!empty, "a full body must not be empty");

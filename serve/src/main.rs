@@ -28,7 +28,7 @@ fn main() {
     async fn run(ex: Arc<Executor<'_>>) -> Result<(), Error> {
         use futures_lite::future;
 
-        let router = Router::new().route("/", routing::get(handler));
+        let router = Router::new().route("/hello", routing::get(handler));
 
         let http1 = {
             let router = router.clone();
