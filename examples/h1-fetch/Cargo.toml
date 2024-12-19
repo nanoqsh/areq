@@ -8,7 +8,6 @@ areq-h1.workspace = true
 async-net.workspace = true
 futures-lite.workspace = true
 http.workspace = true
-url.workspace = true
 
 [lints]
 workspace = true

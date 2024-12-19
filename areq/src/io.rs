@@ -8,21 +8,32 @@ use {
     tokio::io,
 };
 
-/// Async IO adapter.
-pub(crate) struct Io<I>(pub I);
+pin_project_lite::pin_project! {
+    /// Async IO adapter.
+    pub(crate) struct Io<I> {
+        #[pin]
+        io: I,
+    }
+}
+
+impl<I> Io<I> {
+    pub fn new(io: I) -> Self {
+        Self { io }
+    }
+}
 
 impl<I> io::AsyncRead for Io<I>
 where
-    I: AsyncRead + Unpin,
+    I: AsyncRead,
 {
     #[inline]
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context,
         buf: &mut io::ReadBuf,
     ) -> Poll<Result<(), Error>> {
         let bytes = buf.initialize_unfilled();
-        match Pin::new(&mut self.0).poll_read(cx, bytes)? {
+        match self.project().io.poll_read(cx, bytes)? {
             Poll::Ready(n) => {
                 buf.advance(n);
                 Poll::Ready(Ok(()))
@@ -34,25 +45,25 @@ where
 
 impl<I> io::AsyncWrite for Io<I>
 where
-    I: AsyncWrite + Unpin,
+    I: AsyncWrite,
 {
     #[inline]
     fn poll_write(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context,
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
+        self.project().io.poll_write(cx, buf)
     }
 
     #[inline]
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
-        Pin::new(&mut self.0).poll_flush(cx)
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
+        self.project().io.poll_flush(cx)
     }
 
     #[inline]
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
-        Pin::new(&mut self.0).poll_close(cx)
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
+        self.project().io.poll_close(cx)
     }
 }
 
@@ -68,7 +79,7 @@ mod tests {
     #[test]
     fn read() -> Result<(), Error> {
         let mut buf = [0; 5];
-        let mut io = pin::pin!(Io(&b"hello"[..]));
+        let mut io = pin::pin!(Io::new(&b"hello"[..]));
         let n = future::block_on(io.read(&mut buf))?;
         assert_eq!(n, 5);
         assert_eq!(&buf, b"hello");
@@ -78,7 +89,7 @@ mod tests {
     #[test]
     fn write() -> Result<(), Error> {
         let mut buf = vec![];
-        let mut io = pin::pin!(Io(&mut buf));
+        let mut io = pin::pin!(Io::new(&mut buf));
         let n = future::block_on(io.write(b"hello"))?;
         assert_eq!(n, 5);
         assert_eq!(buf, b"hello");

@@ -1,37 +1,37 @@
 use {
     futures_lite::future,
+    http::{uri::Scheme, Uri},
     std::{
         env,
         io::{self, Error, Write},
     },
-    url::Url,
 };
 
 fn main() {
-    let Some(url) = env::args().nth(1) else {
-        println!("usage: fetch <url>");
+    let Some(uri) = env::args().nth(1) else {
+        println!("usage: fetch <uri>");
         return;
     };
 
-    let url: Url = match url.parse() {
+    let uri: Uri = match uri.parse() {
         Ok(url) => url,
         Err(e) => {
-            eprintln!("failed to parse url: {e}");
+            eprintln!("failed to parse uri: {e}");
             return;
         }
     };
 
-    if url.scheme() != "http" {
+    if uri.scheme() != Some(&Scheme::HTTP) {
         eprintln!("only http scheme is supported");
         return;
     }
 
-    if let Err(e) = future::block_on(fetch(url)) {
+    if let Err(e) = future::block_on(fetch(uri)) {
         eprintln!("io error: {e}");
     }
 }
 
-async fn fetch(url: Url) -> Result<(), Error> {
+async fn fetch(uri: Uri) -> Result<(), Error> {
     use {
         areq_h1::Config,
         async_net::TcpStream,
@@ -39,8 +39,8 @@ async fn fetch(url: Url) -> Result<(), Error> {
         http::{header, HeaderValue, Method, Request, Version},
     };
 
-    let host = url.host_str().expect("the url should have a host");
-    let port = url.port().unwrap_or(80);
+    let host = uri.host().expect("the url should have a host");
+    let port = uri.port().map(|port| port.as_u16()).unwrap_or(80);
     let tcp = TcpStream::connect((host, port)).await?;
 
     let (reqs, conn) = Config::default().handshake(tcp);
@@ -50,7 +50,7 @@ async fn fetch(url: Url) -> Result<(), Error> {
         Ok::<_, Error>(())
     };
 
-    let path = url.path().parse().expect("the url path should be valid");
+    let path = uri.path().parse().expect("the url path should be valid");
     let send_request = async move {
         // create new request with empty body
         let mut req = Request::new(());

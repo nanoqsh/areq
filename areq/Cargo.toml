@@ -16,6 +16,7 @@ areq-body.workspace = true
 areq-h1.workspace = true
 bytes.workspace = true
 futures-lite.workspace = true
+futures-rustls.workspace = true
 h2 = "0.4"
 http.workspace = true
 pin-project-lite.workspace = true

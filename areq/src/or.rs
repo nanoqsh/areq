@@ -1,7 +1,7 @@
 use {
     crate::proto::{Client, Error, Handshake, Request, Response, Session},
     areq_body::IntoBody,
-    futures_lite::{AsyncRead, AsyncWrite, Stream},
+    futures_lite::Stream,
     std::{
         future::Future,
         pin::Pin,
@@ -33,19 +33,18 @@ impl<L, R> Or<L, R> {
     }
 }
 
-impl<L, R> Handshake for Or<L, R>
+impl<I, L, R> Handshake<I> for Or<L, R>
 where
-    L: Handshake,
-    R: Handshake,
+    L: Handshake<I>,
+    R: Handshake<I>,
 {
     type Client<B>
         = Or<L::Client<B>, R::Client<B>>
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
+    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
     where
-        I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
         match self {

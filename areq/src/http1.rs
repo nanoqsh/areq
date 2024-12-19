@@ -19,15 +19,17 @@ pub struct Http1 {
     conf: Config,
 }
 
-impl Handshake for Http1 {
+impl<I> Handshake<I> for Http1
+where
+    I: AsyncRead + AsyncWrite,
+{
     type Client<B>
         = H1<B>
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
+    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
     where
-        I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
         let Session { addr, io } = se;

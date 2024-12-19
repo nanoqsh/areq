@@ -21,19 +21,21 @@ pub struct Http2 {
     build: client::Builder,
 }
 
-impl Handshake for Http2 {
+impl<I> Handshake<I> for Http2
+where
+    I: AsyncRead + AsyncWrite + Unpin,
+{
     type Client<B>
         = H2<B>
     where
         B: IntoBody;
 
-    async fn handshake<I, B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
+    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
     where
-        I: AsyncRead + AsyncWrite,
         B: IntoBody,
     {
         let Session { addr, io } = se;
-        let io = Io(Box::pin(io));
+        let io = Io::new(io);
         let (send, conn) = self.build.handshake(io).await?;
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
         let client = H2 { send, host };
