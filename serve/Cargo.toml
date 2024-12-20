@@ -8,8 +8,11 @@ areq.workspace = true
 async-channel.workspace = true
 async-executor.workspace = true
 async-net.workspace = true
+futures-concurrency.workspace = true
 futures-lite.workspace = true
+futures-rustls.workspace = true
 hyper = { version = "1.5", features = ["http1", "http2", "server"] }
+rustls-pemfile.workspace = true
 smol-hyper = { version = "0.1" }
 tower = { version = "0.5", features = ["util"] }
 

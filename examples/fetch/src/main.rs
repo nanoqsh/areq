@@ -16,8 +16,8 @@ fn main() {
     };
 
     let proto = match proto.as_str() {
-        "http1" => Proto::Http1,
-        "http2" => Proto::Http2,
+        "http1" => Protocol::Http1,
+        "http2" => Protocol::Http2,
         undefined => {
             eprintln!("undefined http protocol: {undefined}");
             return;
@@ -42,12 +42,12 @@ fn main() {
     }
 }
 
-enum Proto {
+enum Protocol {
     Http1,
     Http2,
 }
 
-async fn fetch(proto: Proto, uri: Uri) -> Result<(), Error> {
+async fn fetch(proto: Protocol, uri: Uri) -> Result<(), Error> {
     use {
         areq::{http1::Http1, http2::Http2, or::Or, Address, Client, Handshake, Request, Session},
         async_net::TcpStream,
@@ -55,8 +55,8 @@ async fn fetch(proto: Proto, uri: Uri) -> Result<(), Error> {
     };
 
     let handshake = match proto {
-        Proto::Http1 => Or::lhs(Http1::default()),
-        Proto::Http2 => Or::rhs(Http2::default()),
+        Protocol::Http1 => Or::lhs(Http1::default()),
+        Protocol::Http2 => Or::rhs(Http2::default()),
     };
 
     let addr = Address::from_uri(&uri)?;
