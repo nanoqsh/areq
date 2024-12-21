@@ -2,6 +2,7 @@ use {
     crate::{
         body::IntoBody,
         proto::{Client, Error, Handshake, Request, Response, Session},
+        tls::Negotiate,
     },
     areq_h1::Config,
     bytes::Bytes,
@@ -37,6 +38,20 @@ where
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
         let client = H1 { reqs, host };
         Ok((client, conn))
+    }
+}
+
+impl<I> Negotiate<I> for Http1
+where
+    I: AsyncRead + AsyncWrite,
+{
+    type Handshake = Self;
+
+    fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
+        match proto {
+            b"http/1.1" => Some(self),
+            _ => None,
+        }
     }
 }
 

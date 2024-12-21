@@ -1,5 +1,9 @@
 use {
-    areq::http::{uri::Scheme, Method, Uri},
+    areq::{
+        http::{Method, Uri},
+        Handshake,
+    },
+    async_net::TcpStream,
     futures_lite::future,
     std::{
         env,
@@ -18,6 +22,7 @@ fn main() {
     let proto = match proto.as_str() {
         "http1" => Protocol::Http1,
         "http2" => Protocol::Http2,
+        "tls" => Protocol::Tls,
         undefined => {
             eprintln!("undefined http protocol: {undefined}");
             return;
@@ -32,11 +37,6 @@ fn main() {
         }
     };
 
-    if uri.scheme() != Some(&Scheme::HTTP) {
-        eprintln!("only http scheme is supported");
-        return;
-    }
-
     if let Err(e) = future::block_on(fetch(proto, uri)) {
         eprintln!("io error: {e}");
     }
@@ -45,18 +45,35 @@ fn main() {
 enum Protocol {
     Http1,
     Http2,
+    Tls,
 }
 
 async fn fetch(proto: Protocol, uri: Uri) -> Result<(), Error> {
+    use areq::{http1::Http1, http2::Http2, tls::Tls};
+
+    match proto {
+        Protocol::Http1 => get(Http1::default(), uri).await,
+        Protocol::Http2 => get(Http2::default(), uri).await,
+        Protocol::Tls => {
+            let tls = Tls::from_cert(
+                include_bytes!("../../../certs/cert.pem"),
+                Http1::default(),
+                Http2::default(),
+            )?;
+
+            get(tls, uri).await
+        }
+    }
+}
+
+async fn get<H>(handshake: H, uri: Uri) -> Result<(), Error>
+where
+    H: Handshake<TcpStream>,
+{
     use {
-        areq::{http1::Http1, http2::Http2, or::Or, Address, Client, Handshake, Request, Session},
+        areq::{Address, Client, Request, Session},
         async_net::TcpStream,
         futures_lite::{future, io::BufReader, AsyncBufReadExt, StreamExt},
-    };
-
-    let handshake = match proto {
-        Protocol::Http1 => Or::lhs(Http1::default()),
-        Protocol::Http2 => Or::rhs(Http2::default()),
     };
 
     let addr = Address::from_uri(&uri)?;

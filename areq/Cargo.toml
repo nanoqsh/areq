@@ -20,6 +20,7 @@ futures-rustls.workspace = true
 h2 = "0.4"
 http.workspace = true
 pin-project-lite.workspace = true
+rustls-pemfile.workspace = true
 tokio = "1"
 url.workspace = true
 

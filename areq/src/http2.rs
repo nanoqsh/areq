@@ -3,6 +3,7 @@ use {
         body::{self, Body, IntoBody, Kind},
         io::Io,
         proto::Client,
+        tls::Negotiate,
         Error, Handshake, Request, Response, Session,
     },
     bytes::{Buf, Bytes},
@@ -44,6 +45,20 @@ where
         };
 
         Ok((client, conn))
+    }
+}
+
+impl<I> Negotiate<I> for Http2
+where
+    I: AsyncRead + AsyncWrite + Unpin,
+{
+    type Handshake = Self;
+
+    fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
+        match proto {
+            b"h2" => Some(self),
+            _ => None,
+        }
     }
 }
 

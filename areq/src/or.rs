@@ -1,5 +1,8 @@
 use {
-    crate::proto::{Client, Error, Handshake, Request, Response, Session},
+    crate::{
+        proto::{Client, Error, Handshake, Request, Response, Session},
+        tls::Negotiate,
+    },
     areq_body::IntoBody,
     futures_lite::Stream,
     std::{
@@ -66,6 +69,21 @@ where
                     }),
                 ))
             }
+        }
+    }
+}
+
+impl<I, L, R> Negotiate<I> for Or<L, R>
+where
+    L: Negotiate<I>,
+    R: Negotiate<I>,
+{
+    type Handshake = Or<L::Handshake, R::Handshake>;
+
+    fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
+        match self {
+            Self::Lhs { l } => l.negotiate(proto).map(Or::lhs),
+            Self::Rhs { r } => r.negotiate(proto).map(Or::rhs),
         }
     }
 }

@@ -123,13 +123,14 @@ pub trait Handshake<I> {
 pub enum Error {
     Io(io::Error),
     InvalidHost,
+    UnsupportedProtocol(Box<[u8]>),
 }
 
 impl Error {
     pub fn try_into_io(self) -> Result<io::Error, Self> {
         match self {
             Self::Io(e) => Ok(e),
-            e @ Self::InvalidHost => Err(e),
+            e => Err(e),
         }
     }
 }
@@ -167,6 +168,17 @@ impl fmt::Display for Error {
         match self {
             Self::Io(e) => write!(f, "io error: {e}"),
             Self::InvalidHost => write!(f, "invalid host"),
+            Self::UnsupportedProtocol(proto) => {
+                write!(f, "unsupported protocol: ")?;
+                for chunk in proto.utf8_chunks() {
+                    write!(f, "{}", chunk.valid())?;
+                    if !chunk.invalid().is_empty() {
+                        write!(f, "{}", char::REPLACEMENT_CHARACTER)?;
+                    }
+                }
+
+                Ok(())
+            }
         }
     }
 }
@@ -176,6 +188,7 @@ impl error::Error for Error {
         match self {
             Self::Io(e) => Some(e),
             Self::InvalidHost => None,
+            Self::UnsupportedProtocol(_) => None,
         }
     }
 }

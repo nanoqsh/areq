@@ -1,21 +1,16 @@
 use {
     async_executor::Executor,
     async_net::{TcpListener, TcpStream},
-    axum::{
-        body::Body,
-        http::{Request, Response},
-        routing, Router,
-    },
+    axum::{routing, Router},
     futures_concurrency::prelude::*,
     futures_lite::{future, AsyncRead, AsyncWrite},
     futures_rustls::{rustls::ServerConfig, TlsAcceptor},
     hyper::{
-        body::Incoming,
         server::conn::{http1, http2},
-        service::Service,
+        service,
     },
     std::{convert::Infallible, future::Future, io::Error, net::Ipv4Addr, pin, sync::Arc, thread},
-    tower::{util::Oneshot, ServiceExt},
+    tower::ServiceExt,
 };
 
 fn main() {
@@ -25,11 +20,8 @@ fn main() {
 
     let router = Router::new().route("/hello", routing::get(handler));
 
-    let h1 = H1 {
-        router: router.clone(),
-    };
-
-    let h2 = H2 { router };
+    let h1 = H1(router.clone());
+    let h2 = H2(router);
 
     let acceptor = match load_tls_config() {
         Ok(conf) => TlsAcceptor::from(Arc::new(conf)),
@@ -88,9 +80,12 @@ where
 {
     loop {
         let (stream, _) = tcp.accept().await?;
-        let task = async {
-            if let Err(e) = serve.serve(stream).await {
-                eprintln!("serve error: {e}");
+        let task = {
+            let ex = ex.clone();
+            async {
+                if let Err(e) = serve.serve(ex, stream).await {
+                    eprintln!("serve error: {e}");
+                }
             }
         };
 
@@ -101,7 +96,7 @@ where
 fn block_on_thread_pool<'ex, F, U>(n_threads: usize, f: F) -> U::Output
 where
     F: FnOnce(Arc<Executor<'ex>>) -> U,
-    U: Future + 'ex,
+    U: Future,
 {
     let ex = Arc::new(Executor::new());
     let (stop, wait) = async_channel::unbounded::<Infallible>();
@@ -118,68 +113,42 @@ where
 }
 
 trait Serve<I> {
-    fn serve(&self, io: I) -> impl Future<Output = Result<(), Error>> + Send;
+    fn serve(&self, ex: Arc<Executor>, io: I) -> impl Future<Output = Result<(), Error>> + Send;
 }
 
-struct H1 {
-    router: Router,
-}
+struct H1(Router);
 
 impl<I> Serve<I> for H1
 where
     I: AsyncRead + AsyncWrite + Send,
 {
-    async fn serve(&self, io: I) -> Result<(), Error> {
+    async fn serve(&self, _: Arc<Executor<'_>>, io: I) -> Result<(), Error> {
         use smol_hyper::rt::{FuturesIo, SmolTimer};
 
         let io = pin::pin!(FuturesIo::new(io));
         http1::Builder::new()
             .timer(SmolTimer::new())
-            .serve_connection(io, App(self.router.clone()))
+            .serve_connection(io, service::service_fn(|req| self.0.clone().oneshot(req)))
             .await
             .map_err(Error::other)
     }
 }
 
-struct H2 {
-    router: Router,
-}
+struct H2(Router);
 
 impl<I> Serve<I> for H2
 where
     I: AsyncRead + AsyncWrite + Send,
 {
-    async fn serve(&self, io: I) -> Result<(), Error> {
+    async fn serve(&self, ex: Arc<Executor<'_>>, io: I) -> Result<(), Error> {
         use smol_hyper::rt::{FuturesIo, SmolExecutor, SmolTimer};
 
-        struct Ex(Executor<'static>);
-
-        impl AsRef<Executor<'static>> for Ex {
-            fn as_ref(&self) -> &Executor<'static> {
-                &self.0
-            }
-        }
-
-        let ex = Ex(Executor::new());
-
         let io = pin::pin!(FuturesIo::new(io));
-        let serve = http2::Builder::new(SmolExecutor::new(&ex))
+        http2::Builder::new(SmolExecutor::new(ex))
             .timer(SmolTimer::new())
-            .serve_connection(io, App(self.router.clone()));
-
-        ex.0.run(serve).await.map_err(Error::other)
-    }
-}
-
-struct App(Router);
-
-impl Service<Request<Incoming>> for App {
-    type Response = Response<Body>;
-    type Error = Infallible;
-    type Future = Oneshot<Router, Request<Incoming>>;
-
-    fn call(&self, req: Request<Incoming>) -> Self::Future {
-        self.0.clone().oneshot(req)
+            .serve_connection(io, service::service_fn(|req| self.0.clone().oneshot(req)))
+            .await
+            .map_err(Error::other)
     }
 }
 
@@ -190,12 +159,12 @@ struct Tls<'ex> {
 }
 
 impl Serve<TcpStream> for Tls<'_> {
-    async fn serve(&self, io: TcpStream) -> Result<(), Error> {
+    async fn serve(&self, ex: Arc<Executor<'_>>, io: TcpStream) -> Result<(), Error> {
         let io = self.acceptor.accept(io).await?;
         let (_, conn) = io.get_ref();
         match conn.alpn_protocol() {
-            Some(b"http/1.1") => self.h1.serve(io).await,
-            Some(b"h2") => self.h2.serve(io).await,
+            Some(b"http/1.1") => self.h1.serve(ex, io).await,
+            Some(b"h2") => self.h2.serve(ex, io).await,
             _ => Err(Error::other("undefined alpn protocol")),
         }
     }
@@ -214,6 +183,8 @@ fn load_tls_config() -> Result<ServerConfig, Error> {
         .with_single_cert(certs?, pkey)
         .map_err(Error::other)?;
 
-    conf.alpn_protocols.push(Vec::from("h2"));
+    conf.alpn_protocols
+        .extend(["h2", "http/1.1"].map(Vec::from));
+
     Ok(conf)
 }
