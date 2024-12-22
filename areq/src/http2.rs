@@ -22,6 +22,10 @@ pub struct Http2 {
     build: client::Builder,
 }
 
+impl Http2 {
+    const ALPN: &[u8] = b"h2";
+}
+
 impl<I> Handshake<I> for Http2
 where
     I: AsyncRead + AsyncWrite + Unpin,
@@ -48,17 +52,18 @@ where
     }
 }
 
-impl<I> Negotiate<I> for Http2
-where
-    I: AsyncRead + AsyncWrite + Unpin,
-{
+impl Negotiate for Http2 {
     type Handshake = Self;
 
     fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
         match proto {
-            b"h2" => Some(self),
+            Self::ALPN => Some(self),
             _ => None,
         }
+    }
+
+    fn support(&self) -> impl Iterator<Item = &'static [u8]> {
+        [Self::ALPN].into_iter()
     }
 }
 

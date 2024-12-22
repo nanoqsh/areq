@@ -4,7 +4,7 @@ use {
         Handshake,
     },
     async_net::TcpStream,
-    futures_lite::future,
+    futures_lite::{future, FutureExt},
     std::{
         env,
         io::{self, Error, Write},
@@ -49,16 +49,19 @@ enum Protocol {
 }
 
 async fn fetch(proto: Protocol, uri: Uri) -> Result<(), Error> {
-    use areq::{http1::Http1, http2::Http2, tls::Tls};
+    use areq::{
+        http1::Http1,
+        http2::Http2,
+        tls::{Select, Tls},
+    };
 
     match proto {
         Protocol::Http1 => get(Http1::default(), uri).await,
         Protocol::Http2 => get(Http2::default(), uri).await,
         Protocol::Tls => {
-            let tls = Tls::from_cert(
+            let tls = Tls::with_cert(
+                Select(Http1::default(), Http2::default()),
                 include_bytes!("../../../certs/cert.pem"),
-                Http1::default(),
-                Http2::default(),
             )?;
 
             get(tls, uri).await
@@ -115,6 +118,9 @@ where
     };
 
     // zip two futures to send a request while connection io is handling concurrently
-    future::try_zip(handle_io, send_request).await?;
+    future::try_zip(handle_io, send_request)
+        .boxed_local() // box large futures
+        .await?;
+
     Ok(())
 }

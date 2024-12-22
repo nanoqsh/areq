@@ -73,10 +73,10 @@ where
     }
 }
 
-impl<I, L, R> Negotiate<I> for Or<L, R>
+impl<L, R> Negotiate for Or<L, R>
 where
-    L: Negotiate<I>,
-    R: Negotiate<I>,
+    L: Negotiate,
+    R: Negotiate,
 {
     type Handshake = Or<L::Handshake, R::Handshake>;
 
@@ -84,6 +84,13 @@ where
         match self {
             Self::Lhs { l } => l.negotiate(proto).map(Or::lhs),
             Self::Rhs { r } => r.negotiate(proto).map(Or::rhs),
+        }
+    }
+
+    fn support(&self) -> impl Iterator<Item = &'static [u8]> {
+        match self {
+            Self::Lhs { l } => Or::lhs(l.support()),
+            Self::Rhs { r } => Or::rhs(r.support()),
         }
     }
 }
@@ -129,6 +136,21 @@ where
         match self.project() {
             PinnedOr::Lhs { l } => l.poll_next(cx),
             PinnedOr::Rhs { r } => r.poll_next(cx),
+        }
+    }
+}
+
+impl<L, R> Iterator for Or<L, R>
+where
+    L: Iterator,
+    R: Iterator<Item = L::Item>,
+{
+    type Item = L::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Lhs { l } => l.next(),
+            Self::Rhs { r } => r.next(),
         }
     }
 }

@@ -1,7 +1,5 @@
 use {
     crate::{
-        http1::Http1,
-        http2::Http2,
         or::Or,
         proto::{Error, Handshake, Session},
     },
@@ -17,17 +15,19 @@ use {
     url::Host,
 };
 
-pub trait Negotiate<I> {
-    type Handshake: Handshake<I>;
+pub trait Negotiate {
+    type Handshake;
+
     fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake>;
+    fn support(&self) -> impl Iterator<Item = &'static [u8]>;
 }
 
 pub struct Select<L, R>(pub L, pub R);
 
-impl<I, L, R> Negotiate<I> for Select<L, R>
+impl<L, R> Negotiate for Select<L, R>
 where
-    L: Negotiate<I>,
-    R: Negotiate<I>,
+    L: Negotiate,
+    R: Negotiate,
 {
     type Handshake = Or<L::Handshake, R::Handshake>;
 
@@ -38,32 +38,38 @@ where
             .map(Or::lhs)
             .or_else(|| r.negotiate(proto).map(Or::rhs))
     }
-}
 
-pub struct Tls<H> {
-    connector: TlsConnector,
-    inner: H,
-}
+    fn support(&self) -> impl Iterator<Item = &'static [u8]> {
+        let Self(l, r) = self;
 
-impl Tls<Select<Http1, Http2>> {
-    pub fn from_cert(cert: &[u8], http1: Http1, http2: Http2) -> Result<Self, Error> {
-        let conf = read_tls_config(cert, ["http/1.1", "h2"])?;
-        let connector = TlsConnector::from(Arc::new(conf));
-        let inner = Select(http1, http2);
-        Ok(Self::with_connector(connector, inner))
+        l.support().chain(r.support())
     }
 }
 
+pub struct Tls<H> {
+    inner: H,
+    connector: TlsConnector,
+}
+
 impl<H> Tls<H> {
-    pub fn with_connector(connector: TlsConnector, inner: H) -> Self {
-        Self { connector, inner }
+    pub fn with_cert(inner: H, cert: &[u8]) -> Result<Self, Error>
+    where
+        H: Negotiate,
+    {
+        let conf = read_tls_config(cert, inner.support())?;
+        let connector = TlsConnector::from(Arc::new(conf));
+        Ok(Self::with_connector(inner, connector))
+    }
+
+    pub fn with_connector(inner: H, connector: TlsConnector) -> Self {
+        Self { inner, connector }
     }
 }
 
 impl<I, H> Handshake<I> for Tls<H>
 where
     I: AsyncRead + AsyncWrite + Unpin,
-    H: Negotiate<TlsStream<I>>,
+    H: Negotiate<Handshake: Handshake<TlsStream<I>>>,
 {
     type Client<B>
         = <H::Handshake as Handshake<TlsStream<I>>>::Client<B>
@@ -108,8 +114,7 @@ fn as_server_name(host: &Host) -> Result<ServerName, Error> {
 
 fn read_tls_config<P>(mut cert: &[u8], protos: P) -> Result<ClientConfig, io::Error>
 where
-    P: IntoIterator,
-    Vec<u8>: From<P::Item>,
+    P: IntoIterator<Item = &'static [u8]>,
 {
     let mut root = RootCertStore::empty();
     for cert in rustls_pemfile::certs(&mut cert) {

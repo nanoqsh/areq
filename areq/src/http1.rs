@@ -20,6 +20,10 @@ pub struct Http1 {
     conf: Config,
 }
 
+impl Http1 {
+    const ALPN: &[u8] = b"http/1.1";
+}
+
 impl<I> Handshake<I> for Http1
 where
     I: AsyncRead + AsyncWrite,
@@ -41,17 +45,18 @@ where
     }
 }
 
-impl<I> Negotiate<I> for Http1
-where
-    I: AsyncRead + AsyncWrite,
-{
+impl Negotiate for Http1 {
     type Handshake = Self;
 
     fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
         match proto {
-            b"http/1.1" => Some(self),
+            Self::ALPN => Some(self),
             _ => None,
         }
+    }
+
+    fn support(&self) -> impl Iterator<Item = &'static [u8]> {
+        [Self::ALPN].into_iter()
     }
 }
 
