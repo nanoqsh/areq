@@ -5,15 +5,15 @@ edition.workspace = true
 
 [dependencies]
 areq.workspace = true
-async-channel.workspace = true
-async-executor.workspace = true
-async-net.workspace = true
+bytes.workspace = true
 futures-concurrency.workspace = true
 futures-lite.workspace = true
 futures-rustls.workspace = true
+http-body-util = "0.1.2"
 hyper = { version = "1.5", features = ["http1", "http2", "server"] }
 rustls-pemfile.workspace = true
-smol-hyper = { version = "0.1" }
+smol = "2.0.2"
+smol-hyper = "0.1"
 tower = { version = "0.5", features = ["util"] }
 
 [dependencies.axum]

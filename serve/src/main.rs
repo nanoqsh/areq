@@ -1,15 +1,27 @@
+mod sse;
+
 use {
-    async_executor::Executor,
-    async_net::{TcpListener, TcpStream},
-    axum::{routing, Router},
+    axum::{
+        response::{IntoResponse, Response},
+        routing, Router,
+    },
     futures_concurrency::prelude::*,
     futures_lite::{future, AsyncRead, AsyncWrite},
     futures_rustls::{rustls::ServerConfig, TlsAcceptor},
     hyper::{
+        header::{self, HeaderValue},
         server::conn::{http1, http2},
         service,
     },
-    std::{convert::Infallible, future::Future, io::Error, net::Ipv4Addr, pin, sync::Arc, thread},
+    smol::{
+        channel,
+        net::{TcpListener, TcpStream},
+        Executor, Timer,
+    },
+    std::{
+        convert::Infallible, future::Future, io::Error, net::Ipv4Addr, pin, sync::Arc, thread,
+        time::Duration,
+    },
     tower::ServiceExt,
 };
 
@@ -18,7 +30,45 @@ fn main() {
         "Hello, World!"
     }
 
-    let router = Router::new().route("/hello", routing::get(handler));
+    async fn events(event_ex: Arc<Executor<'_>>) -> impl IntoResponse {
+        let (produce, consume) = channel::bounded(1);
+
+        let events = async move {
+            loop {
+                Timer::after(Duration::from_secs(1)).await;
+                if produce.send(()).await.is_err() {
+                    break;
+                }
+            }
+        };
+
+        event_ex.spawn(events).detach();
+
+        let mut res = Response::new(sse::event_stream(consume));
+        let headers = res.headers_mut();
+
+        headers.insert(
+            header::CONTENT_TYPE,
+            const { HeaderValue::from_static("text/event-stream") },
+        );
+
+        headers.insert(
+            header::CACHE_CONTROL,
+            const { HeaderValue::from_static("no-cache") },
+        );
+
+        res
+    }
+
+    let event_ex = Arc::new(Executor::new());
+
+    let router = Router::new().route("/hello", routing::get(handler)).route(
+        "/events",
+        routing::get({
+            let event_ex = event_ex.clone();
+            move || events(event_ex.clone())
+        }),
+    );
 
     let h1 = H1(router.clone());
     let h2 = H2(router);
@@ -67,6 +117,11 @@ fn main() {
                     serve(ex, &tls, tcp).await
                 }
             },
+            event_ex.run(async {
+                loop {
+                    event_ex.tick().await;
+                }
+            }),
         )
             .race_ok()
     }) {
@@ -99,7 +154,7 @@ where
     U: Future,
 {
     let ex = Arc::new(Executor::new());
-    let (stop, wait) = async_channel::unbounded::<Infallible>();
+    let (stop, wait) = channel::unbounded::<Infallible>();
     thread::scope(|scope| {
         for _ in 0..n_threads {
             scope.spawn(|| future::block_on(ex.run(wait.recv())));
