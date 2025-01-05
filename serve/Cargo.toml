@@ -17,7 +17,7 @@ smol-hyper = "0.1"
 tower = { version = "0.5", features = ["util"] }
 
 [dependencies.axum]
-version = "0.7"
+version = "0.8"
 default-features = false
 features = ["http1"]
 

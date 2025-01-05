@@ -45,14 +45,12 @@ fn main() {
         event_ex.spawn(events).detach();
 
         let mut res = Response::new(sse::event_stream(consume));
-        let headers = res.headers_mut();
-
-        headers.insert(
+        res.headers_mut().insert(
             header::CONTENT_TYPE,
             const { HeaderValue::from_static("text/event-stream") },
         );
 
-        headers.insert(
+        res.headers_mut().insert(
             header::CACHE_CONTROL,
             const { HeaderValue::from_static("no-cache") },
         );
