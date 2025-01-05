@@ -53,7 +53,7 @@ impl Address {
     }
 
     /// Returns a representation of the host and port based on the security protocol
-    pub fn repr(&self) -> Cow<str> {
+    pub fn repr(&self) -> Cow<'_, str> {
         if self.port == default_port(self.secure) {
             match &self.host {
                 Host::Domain(domain) => Cow::Borrowed(domain),
@@ -93,7 +93,7 @@ impl From<InvalidUri> for io::Error {
 }
 
 impl fmt::Display for InvalidUri {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoScheme => write!(f, "no scheme"),
             Self::NonHttpScheme => write!(f, "non http(s) scheme"),
@@ -164,7 +164,7 @@ impl From<Error> for io::Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(e) => write!(f, "io error: {e}"),
             Self::InvalidHost => write!(f, "invalid host"),
@@ -272,7 +272,7 @@ impl<B> From<http::Request<B>> for Request<B> {
 pub struct BoxedBody(Pin<Box<dyn BodyStream>>);
 
 impl fmt::Debug for BoxedBody {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Body").field(&"..").finish()
     }
 }
@@ -280,7 +280,7 @@ impl fmt::Debug for BoxedBody {
 impl Stream for BoxedBody {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.get_mut() {
             Self(stream) => Pin::new(stream).poll_next(cx),
         }
@@ -361,7 +361,7 @@ where
         {
             fn poll_read(
                 self: Pin<&mut Self>,
-                cx: &mut Context,
+                cx: &mut Context<'_>,
                 buf: &mut [u8],
             ) -> Poll<Result<usize, io::Error>> {
                 if buf.is_empty() {

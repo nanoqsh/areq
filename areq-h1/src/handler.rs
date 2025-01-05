@@ -299,7 +299,7 @@ impl Parser {
             StatusCode::from_u16(out.code.unwrap_or_default()).expect("valid status code");
 
         *res.headers_mut() = {
-            let entry = |header: Header| {
+            let entry = |header: Header<'_>| {
                 let name =
                     HeaderName::from_bytes(header.name.as_bytes()).expect("valid header name");
                 let value = HeaderValue::from_maybe_shared(buf.slice_ref(header.value))

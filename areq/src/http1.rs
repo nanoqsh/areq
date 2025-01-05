@@ -107,7 +107,7 @@ pin_project_lite::pin_project! {
 impl Stream for BodyH1 {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.project().body.poll_next(cx).map_err(Error::from)
     }
 }

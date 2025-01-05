@@ -57,7 +57,7 @@ impl From<Error> for io::Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(e) => write!(f, "io error: {e}"),
             Self::Parse(e) => write!(f, "parse error: {e}"),

@@ -199,7 +199,7 @@ pub struct BodyH2(h2::RecvStream);
 impl Stream for BodyH2 {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.0.poll_data(cx).map_err(Error::from)
     }
 }

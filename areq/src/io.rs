@@ -29,8 +29,8 @@ where
     #[inline]
     fn poll_read(
         self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut io::ReadBuf,
+        cx: &mut Context<'_>,
+        buf: &mut io::ReadBuf<'_>,
     ) -> Poll<Result<(), Error>> {
         let bytes = buf.initialize_unfilled();
         match self.project().io.poll_read(cx, bytes)? {
@@ -50,19 +50,19 @@ where
     #[inline]
     fn poll_write(
         self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
         self.project().io.poll_write(cx, buf)
     }
 
     #[inline]
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         self.project().io.poll_flush(cx)
     }
 
     #[inline]
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Error>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         self.project().io.poll_close(cx)
     }
 }

@@ -166,7 +166,8 @@ where
 }
 
 trait Serve<I> {
-    fn serve(&self, ex: Arc<Executor>, io: I) -> impl Future<Output = Result<(), Error>> + Send;
+    fn serve(&self, ex: Arc<Executor<'_>>, io: I)
+        -> impl Future<Output = Result<(), Error>> + Send;
 }
 
 struct H1(Router);

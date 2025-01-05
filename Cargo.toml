@@ -40,6 +40,9 @@ pin-project-lite = "0.2"
 rustls-pemfile = "2.2"
 url = "2.5"
 
+[workspace.lints.rust]
+elided-lifetimes-in-paths = "deny"
+
 [workspace.lints.clippy]
 large-futures = "deny"
 manual-assert = "deny"

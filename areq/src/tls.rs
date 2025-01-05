@@ -102,7 +102,7 @@ where
     }
 }
 
-fn as_server_name(host: &Host) -> Result<ServerName, Error> {
+fn as_server_name(host: &Host) -> Result<ServerName<'_>, Error> {
     match host {
         Host::Domain(domain) => {
             ServerName::try_from(domain.as_str()).map_err(|_| Error::InvalidHost)

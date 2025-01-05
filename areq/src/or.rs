@@ -117,7 +117,7 @@ where
 {
     type Output = L::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project() {
             PinnedOr::Lhs { l } => l.poll(cx),
             PinnedOr::Rhs { r } => r.poll(cx),
@@ -132,7 +132,7 @@ where
 {
     type Item = L::Item;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.project() {
             PinnedOr::Lhs { l } => l.poll_next(cx),
             PinnedOr::Rhs { r } => r.poll_next(cx),

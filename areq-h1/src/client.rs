@@ -213,7 +213,7 @@ impl FetchBody {
 
 impl fmt::Debug for FetchBody {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FetchBody").finish()
     }
 }
@@ -229,7 +229,7 @@ impl Stream for BodyStream {
     type Item = Result<Bytes, Error>;
 
     #[inline]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.project().fetch.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) if bytes.is_empty() => Poll::Ready(None),
             Poll::Ready(o) => Poll::Ready(o),
