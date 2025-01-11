@@ -6,10 +6,9 @@ use {
     },
     areq_h1::Config,
     bytes::Bytes,
-    futures_lite::{AsyncRead, AsyncWrite, Stream},
+    futures_lite::prelude::*,
     http::{header, HeaderValue, Version},
     std::{
-        future::Future,
         pin::Pin,
         task::{Context, Poll},
     },

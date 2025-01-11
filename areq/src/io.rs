@@ -1,5 +1,5 @@
 use {
-    futures_lite::{AsyncRead, AsyncWrite},
+    futures_lite::prelude::*,
     std::{
         io::Error,
         pin::Pin,

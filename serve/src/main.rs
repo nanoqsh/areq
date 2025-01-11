@@ -19,10 +19,7 @@ use {
         net::{TcpListener, TcpStream},
         Executor, Timer,
     },
-    std::{
-        convert::Infallible, future::Future, io::Error, net::Ipv4Addr, pin, sync::Arc, thread,
-        time::Duration,
-    },
+    std::{convert::Infallible, io::Error, net::Ipv4Addr, pin, sync::Arc, thread, time::Duration},
     tower::ServiceExt,
 };
 

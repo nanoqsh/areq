@@ -1,12 +1,11 @@
 use {
     crate::body::IntoBody,
     bytes::Bytes,
-    futures_lite::{AsyncRead, Stream, StreamExt},
+    futures_lite::prelude::*,
     http::{request, response, uri::Scheme, HeaderMap, Method, StatusCode, Uri, Version},
     std::{
         borrow::Cow,
         error, fmt,
-        future::Future,
         io::{self, ErrorKind},
         pin::Pin,
         task::{Context, Poll},
@@ -414,7 +413,7 @@ impl<B> From<http::Response<B>> for Response<B> {
 mod tests {
     use {
         super::*,
-        futures_lite::{future, io, stream, AsyncReadExt},
+        futures_lite::{future, io, stream},
     };
 
     #[test]

@@ -7,11 +7,11 @@ use {
         Error, Handshake, Request, Response, Session,
     },
     bytes::{Buf, Bytes},
-    futures_lite::{AsyncRead, AsyncWrite, Stream},
+    futures_lite::prelude::*,
     h2::client,
     http::{header, HeaderValue, Version},
     std::{
-        future::{self, Future},
+        future,
         pin::Pin,
         task::{Context, Poll},
     },

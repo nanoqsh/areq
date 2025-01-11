@@ -7,11 +7,10 @@ use {
     },
     async_channel::{Receiver, Sender},
     bytes::{Buf, Bytes},
-    futures_lite::{AsyncRead, AsyncWrite, Stream},
+    futures_lite::prelude::*,
     http::{header, HeaderValue, Request, Response},
     std::{
         fmt,
-        future::Future,
         pin::{self, Pin},
         task::{Context, Poll},
     },

@@ -4,7 +4,7 @@ use {
         Handshake,
     },
     async_net::TcpStream,
-    futures_lite::{future, FutureExt},
+    futures_lite::{future, prelude::*},
     std::{
         env,
         io::{self, Error, Write},

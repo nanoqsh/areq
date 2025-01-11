@@ -4,9 +4,8 @@ use {
         tls::Negotiate,
     },
     areq_body::IntoBody,
-    futures_lite::Stream,
+    futures_lite::prelude::*,
     std::{
-        future::Future,
         pin::Pin,
         task::{Context, Poll},
     },

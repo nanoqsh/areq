@@ -1,8 +1,8 @@
 use {
     bytes::Buf,
-    futures_lite::{Stream, StreamExt},
+    futures_lite::prelude::*,
     std::{
-        future::{self, Future, IntoFuture},
+        future::{self, IntoFuture},
         pin::Pin,
         task::{Context, Poll},
     },

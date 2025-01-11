@@ -4,14 +4,14 @@ use {
         proto::{Error, Handshake, Session},
     },
     areq_body::IntoBody,
-    futures_lite::{AsyncRead, AsyncWrite},
+    futures_lite::prelude::*,
     futures_rustls::{
         client::TlsStream,
         pki_types::ServerName,
         rustls::{ClientConfig, RootCertStore},
         TlsConnector,
     },
-    std::{future::Future, io, sync::Arc},
+    std::{io, sync::Arc},
     url::Host,
 };
 

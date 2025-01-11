@@ -2,7 +2,7 @@ use {
     crate::{bytes::InitBytesMut, error::Error},
     bytes::Bytes,
     core::str,
-    futures_lite::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    futures_lite::prelude::*,
     http::{Request, Response, Version},
     httparse::{Header, ParserConfig},
 };
