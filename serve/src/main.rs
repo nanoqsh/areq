@@ -1,14 +1,15 @@
-mod sse;
-
 use {
     axum::{
         response::{IntoResponse, Response},
         routing, Router,
     },
+    bytes::Bytes,
     futures_concurrency::prelude::*,
-    futures_lite::{future, AsyncRead, AsyncWrite},
+    futures_lite::{future, prelude::*, stream},
     futures_rustls::{rustls::ServerConfig, TlsAcceptor},
+    http_body_util::StreamBody,
     hyper::{
+        body::Frame,
         header::{self, HeaderValue},
         server::conn::{http1, http2},
         service,
@@ -30,21 +31,18 @@ fn main() {
         "Hello, World!"
     }
 
-    async fn events(event_ex: Arc<Executor<'_>>) -> impl IntoResponse {
-        let (produce, consume) = channel::bounded(1);
-
-        let events = async move {
-            loop {
+    async fn events() -> impl IntoResponse {
+        let stream = stream::repeat(())
+            .then(|()| async {
                 Timer::after(Duration::from_secs(1)).await;
-                if produce.send(()).await.is_err() {
-                    break;
-                }
-            }
-        };
+                const { Bytes::from_static(b"data: {}\n\n") }
+            })
+            .map(Frame::data)
+            .map(Ok::<_, Infallible>)
+            .boxed();
 
-        event_ex.spawn(events).detach();
+        let mut res = Response::new(StreamBody::new(stream));
 
-        let mut res = Response::new(sse::event_stream(consume));
         res.headers_mut().insert(
             header::CONTENT_TYPE,
             const { HeaderValue::from_static("text/event-stream") },
@@ -58,15 +56,9 @@ fn main() {
         res
     }
 
-    let event_ex = Arc::new(Executor::new());
-
-    let router = Router::new().route("/hello", routing::get(handler)).route(
-        "/events",
-        routing::get({
-            let event_ex = event_ex.clone();
-            move || events(event_ex.clone())
-        }),
-    );
+    let router = Router::new()
+        .route("/hello", routing::get(handler))
+        .route("/events", routing::get(events));
 
     let h1 = H1(router.clone());
     let h2 = H2(router);
@@ -92,8 +84,8 @@ fn main() {
         Ok(tcp)
     }
 
-    if let Err(e) = block_on_thread_pool(2, |ex| {
-        (
+    block_on_thread_pool(2, |ex| {
+        let tasks = (
             {
                 let ex = ex.clone();
                 async {
@@ -115,16 +107,14 @@ fn main() {
                     serve(ex, &tls, tcp).await
                 }
             },
-            event_ex.run(async {
-                loop {
-                    event_ex.tick().await;
-                }
-            }),
-        )
-            .race_ok()
-    }) {
-        eprintln!("runtime error: {e}");
-    }
+        );
+
+        async {
+            if let Err(e) = tasks.try_join().await {
+                eprintln!("runtime error: {e}");
+            }
+        }
+    });
 }
 
 async fn serve<'ex, S>(ex: Arc<Executor<'ex>>, serve: &'ex S, tcp: TcpListener) -> Result<(), Error>
