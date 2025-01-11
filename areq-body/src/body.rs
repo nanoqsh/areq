@@ -4,6 +4,7 @@ use {
     std::{
         future::{self, Future, IntoFuture},
         pin::Pin,
+        task::{Context, Poll},
     },
 };
 
@@ -97,6 +98,16 @@ impl Body for () {
     }
 }
 
+impl<'slice> IntoBody for &'slice [u8] {
+    type Chunk = <Self::Body as Body>::Chunk;
+    type Body = Full<&'slice [u8]>;
+
+    #[inline]
+    fn into_body(self) -> Self::Body {
+        Full::new(self)
+    }
+}
+
 pub struct Full<B>(Option<B>);
 
 impl<B> Full<B> {
@@ -170,17 +181,30 @@ where
     }
 }
 
-impl<'slice> IntoBody for &'slice [u8] {
-    type Chunk = <Self::Body as Body>::Chunk;
-    type Body = Full<&'slice [u8]>;
+pub struct Chunked<S>(pub S);
 
+impl<S> Chunked<S> {
     #[inline]
-    fn into_body(self) -> Self::Body {
-        Full::new(self)
+    pub fn catch_error<T, E>(self) -> Chunked<CatchError<S, E>>
+    where
+        S: Stream<Item = Result<T, E>>,
+    {
+        Chunked(CatchError {
+            stream: self.0,
+            err: None,
+        })
     }
 }
 
-pub struct Chunked<S>(pub S);
+impl<S, E> Chunked<CatchError<S, E>> {
+    #[inline]
+    pub fn take_error(&mut self) -> Result<(), E> {
+        match self.0.err.take() {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
+    }
+}
 
 impl<S> Body for Chunked<S>
 where
@@ -205,9 +229,41 @@ where
     }
 }
 
+pin_project_lite::pin_project! {
+    pub struct CatchError<S, E> {
+        #[pin]
+        stream: S,
+        err: Option<E>,
+    }
+}
+
+impl<S, E, T> Stream for CatchError<S, E>
+where
+    S: Stream<Item = Result<T, E>>,
+{
+    type Item = T;
+
+    #[inline]
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let me = self.project();
+        match me.stream.poll_next(cx) {
+            Poll::Ready(Some(Ok(t))) => Poll::Ready(Some(t)),
+            Poll::Ready(Some(Err(e))) => {
+                *me.err = Some(e);
+                Poll::Ready(None)
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use {super::*, futures_lite::future};
+    use {
+        super::*,
+        futures_lite::{future, stream},
+    };
 
     #[test]
     fn slice() {
@@ -230,5 +286,33 @@ mod tests {
         let deferred = Deferred::new(future::ready(src.as_bytes()));
         let actual = future::block_on(take_full(deferred));
         assert_eq!(actual, src.as_bytes());
+    }
+
+    #[test]
+    fn chunked() {
+        let src = ["a", "b", "c"].map(str::as_bytes);
+
+        let mut chunked = Chunked(stream::iter(src));
+        for expected in src {
+            let actual = future::block_on(chunked.chunk());
+            assert_eq!(actual, Some(expected));
+        }
+    }
+
+    #[test]
+    fn chunked_catch_error() {
+        let src = [Ok("a"), Ok("b"), Err(2)].map(|r| r.map(str::as_bytes));
+
+        let mut chunked = Chunked(stream::iter(src)).catch_error();
+        for expected in src {
+            let actual = future::block_on(chunked.chunk());
+
+            assert_eq!(
+                actual.ok_or_else(|| chunked
+                    .take_error()
+                    .expect_err("on none, an error must be here")),
+                expected,
+            );
+        }
     }
 }
