@@ -1,5 +1,5 @@
 use {
-    crate::body::IntoBody,
+    crate::{body::IntoBody, http2},
     bytes::Bytes,
     futures_lite::prelude::*,
     http::{request, response, uri::Scheme, HeaderMap, Method, StatusCode, Uri, Version},
@@ -140,19 +140,15 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<h2::Error> for Error {
-    fn from(e: h2::Error) -> Self {
-        if e.is_io() {
-            Self::Io(e.into_io().expect("the error should be IO"))
-        } else {
-            Self::Io(io::Error::other(e))
-        }
-    }
-}
-
 impl From<areq_h1::Error> for Error {
     fn from(e: areq_h1::Error) -> Self {
         Self::Io(e.into())
+    }
+}
+
+impl From<h2::Error> for Error {
+    fn from(e: h2::Error) -> Self {
+        Self::Io(http2::into_io_error(e))
     }
 }
 
@@ -200,8 +196,26 @@ pub trait Client<B> {
 }
 
 /// A body streaming trait alias.
-pub trait BodyStream: Stream<Item = Result<Bytes, Error>> + 'static {}
-impl<B> BodyStream for B where B: Stream<Item = Result<Bytes, Error>> + 'static {}
+pub trait BodyStream: Stream<Item = Result<Bytes, io::Error>> + 'static {}
+impl<B> BodyStream for B where B: Stream<Item = Result<Bytes, io::Error>> + 'static {}
+
+pub struct BoxedBody(Pin<Box<dyn BodyStream>>);
+
+impl fmt::Debug for BoxedBody {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Body").field(&"..").finish()
+    }
+}
+
+impl Stream for BoxedBody {
+    type Item = Result<Bytes, io::Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.get_mut() {
+            Self(stream) => Pin::new(stream).poll_next(cx),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Request<B> {
@@ -265,24 +279,6 @@ impl<B> From<http::Request<B>> for Request<B> {
     fn from(req: http::Request<B>) -> Self {
         let (head, body) = req.into_parts();
         Self { head, body }
-    }
-}
-
-pub struct BoxedBody(Pin<Box<dyn BodyStream>>);
-
-impl fmt::Debug for BoxedBody {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Body").field(&"..").finish()
-    }
-}
-
-impl Stream for BoxedBody {
-    type Item = Result<Bytes, Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.get_mut() {
-            Self(stream) => Pin::new(stream).poll_next(cx),
-        }
     }
 }
 
@@ -390,7 +386,7 @@ where
             }
         }
 
-        let stream = self.body().map(|res| res.map_err(Error::into));
+        let stream = self.body();
         let bytes = Bytes::new();
         Reader { stream, bytes }
     }
@@ -419,7 +415,7 @@ mod tests {
     #[test]
     fn body_into_stream() {
         let body = stream::iter(["foo", "bar", "baz"])
-            .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
+            .map(|part| Ok::<_, io::Error>(Bytes::copy_from_slice(part.as_bytes())));
 
         let res = Response::new(http::Response::new(body));
         let actual: Vec<_> = future::block_on(
@@ -434,7 +430,7 @@ mod tests {
     #[test]
     fn body_into_reader() {
         let body = stream::iter(["foo", "bar", "baz"])
-            .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
+            .map(|part| Ok::<_, io::Error>(Bytes::copy_from_slice(part.as_bytes())));
 
         let res = Response::new(http::Response::new(body));
         let mut actual = vec![];
@@ -445,7 +441,7 @@ mod tests {
     #[test]
     fn body_into_reader_partial() {
         let body = stream::iter(["foo", "bar", "baz"])
-            .map(|part| Ok::<_, Error>(Bytes::copy_from_slice(part.as_bytes())));
+            .map(|part| Ok::<_, io::Error>(Bytes::copy_from_slice(part.as_bytes())));
 
         let res = Response::new(http::Response::new(body));
         let mut reader = res.body_reader();

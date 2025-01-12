@@ -11,7 +11,7 @@ use {
     h2::client,
     http::{header, HeaderValue, Version},
     std::{
-        future,
+        future, io,
         pin::Pin,
         task::{Context, Poll},
     },
@@ -197,9 +197,17 @@ where
 pub struct BodyH2(h2::RecvStream);
 
 impl Stream for BodyH2 {
-    type Item = Result<Bytes, Error>;
+    type Item = Result<Bytes, io::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.0.poll_data(cx).map_err(Error::from)
+        self.0.poll_data(cx).map_err(into_io_error)
+    }
+}
+
+pub(crate) fn into_io_error(e: h2::Error) -> io::Error {
+    if e.is_io() {
+        e.into_io().expect("the error should be IO")
+    } else {
+        io::Error::other(e)
     }
 }
