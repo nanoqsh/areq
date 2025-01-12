@@ -3,8 +3,8 @@ use {
     futures_lite::prelude::*,
     std::{
         future::{self, IntoFuture},
+        io::Error,
         pin::Pin,
-        task::{Context, Poll},
     },
 };
 
@@ -19,7 +19,7 @@ pub trait Body {
     type Chunk: Buf;
 
     #[expect(async_fn_in_trait)]
-    async fn chunk(&mut self) -> Option<Self::Chunk>;
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
 
     fn kind(&self) -> Kind;
 
@@ -46,7 +46,7 @@ pub enum Kind {
 }
 
 #[inline]
-pub async fn take_full<B>(body: B) -> B::Chunk
+pub async fn take_full<B>(body: B) -> Result<B::Chunk, Error>
 where
     B: IntoBody,
 {
@@ -83,7 +83,7 @@ impl Body for () {
     type Chunk = Void;
 
     #[inline]
-    async fn chunk(&mut self) -> Option<Self::Chunk> {
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         None
     }
 
@@ -108,6 +108,16 @@ impl<'slice> IntoBody for &'slice [u8] {
     }
 }
 
+impl<'str> IntoBody for &'str str {
+    type Chunk = <Self::Body as Body>::Chunk;
+    type Body = Full<&'str [u8]>;
+
+    #[inline]
+    fn into_body(self) -> Self::Body {
+        Full::new(self.as_bytes())
+    }
+}
+
 pub struct Full<B>(Option<B>);
 
 impl<B> Full<B> {
@@ -124,8 +134,8 @@ where
     type Chunk = B;
 
     #[inline]
-    async fn chunk(&mut self) -> Option<Self::Chunk> {
-        self.0.take()
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        self.0.take().map(Ok)
     }
 
     #[inline]
@@ -151,14 +161,15 @@ impl<F> Deferred<F> {
     }
 }
 
-impl<F> Body for Deferred<F>
+impl<F, I> Body for Deferred<F>
 where
-    F: Future<Output: Buf> + Unpin,
+    F: Future<Output = Result<I, Error>> + Unpin,
+    I: Buf,
 {
-    type Chunk = F::Output;
+    type Chunk = I;
 
     #[inline]
-    async fn chunk(&mut self) -> Option<Self::Chunk> {
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         match &mut self.0 {
             Some(fu) => {
                 let mut fu = Pin::new(fu);
@@ -183,37 +194,15 @@ where
 
 pub struct Chunked<S>(pub S);
 
-impl<S> Chunked<S> {
-    #[inline]
-    pub fn catch_error<T, E>(self) -> Chunked<CatchError<S, E>>
-    where
-        S: Stream<Item = Result<T, E>>,
-    {
-        Chunked(CatchError {
-            stream: self.0,
-            err: None,
-        })
-    }
-}
-
-impl<S, E> Chunked<CatchError<S, E>> {
-    #[inline]
-    pub fn take_error(&mut self) -> Result<(), E> {
-        match self.0.err.take() {
-            Some(e) => Err(e),
-            None => Ok(()),
-        }
-    }
-}
-
-impl<S> Body for Chunked<S>
+impl<S, I> Body for Chunked<S>
 where
-    S: Stream<Item: Buf> + Unpin,
+    S: Stream<Item = Result<I, Error>> + Unpin,
+    I: Buf,
 {
-    type Chunk = S::Item;
+    type Chunk = I;
 
     #[inline]
-    async fn chunk(&mut self) -> Option<Self::Chunk> {
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         self.0.next().await
     }
 
@@ -229,47 +218,26 @@ where
     }
 }
 
-pin_project_lite::pin_project! {
-    pub struct CatchError<S, E> {
-        #[pin]
-        stream: S,
-        err: Option<E>,
-    }
-}
-
-impl<S, E, T> Stream for CatchError<S, E>
-where
-    S: Stream<Item = Result<T, E>>,
-{
-    type Item = T;
-
-    #[inline]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let me = self.project();
-        match me.stream.poll_next(cx) {
-            Poll::Ready(Some(Ok(t))) => Poll::Ready(Some(t)),
-            Poll::Ready(Some(Err(e))) => {
-                *me.err = Some(e);
-                Poll::Ready(None)
-            }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use {
         super::*,
         futures_lite::{future, stream},
+        std::io::ErrorKind,
     };
 
     #[test]
     fn slice() {
         let src = "hi";
         let actual = future::block_on(take_full(src.as_bytes()));
-        assert_eq!(actual, src.as_bytes());
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
+    }
+
+    #[test]
+    fn str() {
+        let src = "hi";
+        let actual = future::block_on(take_full(src));
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
     }
 
     #[test]
@@ -277,42 +245,32 @@ mod tests {
         let src = "hi";
         let full = Full::new(src.as_bytes());
         let actual = future::block_on(take_full(full));
-        assert_eq!(actual, src.as_bytes());
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
     }
 
     #[test]
     fn deferred() {
         let src = "hi";
-        let deferred = Deferred::new(future::ready(src.as_bytes()));
+        let deferred = Deferred::new(future::ready(Ok(src.as_bytes())));
         let actual = future::block_on(take_full(deferred));
-        assert_eq!(actual, src.as_bytes());
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
     }
 
     #[test]
     fn chunked() {
-        let src = ["a", "b", "c"].map(str::as_bytes);
+        let src = [Ok("a"), Ok("b"), Err(Error::from(ErrorKind::UnexpectedEof))]
+            .map(|r| r.map(str::as_bytes));
+
+        let n = src.len();
 
         let mut chunked = Chunked(stream::iter(src));
-        for expected in src {
+        for _ in 0..n {
             let actual = future::block_on(chunked.chunk());
-            assert_eq!(actual, Some(expected));
-        }
-    }
-
-    #[test]
-    fn chunked_catch_error() {
-        let src = [Ok("a"), Ok("b"), Err(2)].map(|r| r.map(str::as_bytes));
-
-        let mut chunked = Chunked(stream::iter(src)).catch_error();
-        for expected in src {
-            let actual = future::block_on(chunked.chunk());
-
-            assert_eq!(
-                actual.ok_or_else(|| chunked
-                    .take_error()
-                    .expect_err("on none, an error must be here")),
-                expected,
-            );
+            match actual {
+                Some(Ok(a)) => assert!(matches!(a, b"a" | b"b")),
+                Some(Err(e)) => assert_eq!(e.kind(), ErrorKind::UnexpectedEof),
+                None => unreachable!(),
+            }
         }
     }
 }

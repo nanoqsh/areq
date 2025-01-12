@@ -99,7 +99,7 @@ where
                     conn.io.write_header(&head).await?;
                 }
                 Kind::Full => {
-                    let full = body::take_full(body).await;
+                    let full = body::take_full(body).await?;
 
                     let chunk = full.chunk();
                     let chunk_len = HeaderValue::from(chunk.len());
@@ -116,7 +116,7 @@ where
 
                     conn.io.write_header(&head).await?;
                     while let Some(chunk) = body.chunk().await {
-                        conn.io.write_chunk(chunk.chunk()).await?;
+                        conn.io.write_chunk(chunk?.chunk()).await?;
                         conn.io.flush().await?;
                     }
 
@@ -302,8 +302,7 @@ mod tests {
 
         let (reqs, conn) = Config::default().handshake(io);
         run(conn, async {
-            let body = REQUEST_BODY.as_bytes();
-            let req = Request::new(body);
+            let req = Request::new(REQUEST_BODY);
             let mut res = reqs.send(req).await?;
 
             let body = res.body_mut().frame().await?;
@@ -367,7 +366,7 @@ mod tests {
 
         let (reqs, conn) = Config::default().handshake(io);
         run(conn, async {
-            let body = stream::iter(CHUNKS).map(str::as_bytes);
+            let body = stream::iter(CHUNKS).map(str::as_bytes).map(Ok);
             let req = Request::new(Chunked(body));
             let mut res = reqs.send(req).await?;
             for expected in CHUNKS {

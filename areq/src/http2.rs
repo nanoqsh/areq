@@ -137,7 +137,7 @@ where
             Kind::Full => {
                 debug_assert!(!empty, "a full body must not be empty");
 
-                let full = body::take_full(body).await;
+                let full = body::take_full(body).await?;
                 send_body.send_data(Flow::Next(full), true)?;
             }
             Kind::Chunked => 'stream: {
@@ -147,7 +147,7 @@ where
 
                 while let Some(chunk) = body.chunk().await {
                     let end = body.is_end();
-                    send_body.send_data(Flow::Next(chunk), end)?;
+                    send_body.send_data(Flow::Next(chunk?), end)?;
 
                     if end {
                         break 'stream;
