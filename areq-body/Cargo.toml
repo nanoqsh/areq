@@ -14,6 +14,10 @@ rust-version.workspace = true
 [dependencies]
 bytes.workspace = true
 futures-lite.workspace = true
+pin-project-lite.workspace = true
+
+[features]
+rtn = []
 
 [lints]
 workspace = true

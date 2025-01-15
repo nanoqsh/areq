@@ -1,3 +1,18 @@
+#![cfg_attr(feature = "rtn", feature(return_type_notation))]
+
 mod body;
 
-pub use crate::body::{take_full, Body, Chunked, Deferred, Full, IntoBody, Kind, Void};
+pub mod prelude {
+    pub use crate::{Body, BodyExt as _};
+
+    #[cfg(feature = "rtn")]
+    pub use crate::BodyExtRtn as _;
+}
+
+pub use crate::body::{
+    take_full, Body, BodyExt, BoxedBody, BoxedBodySend, Chunked, Deferred, Full, IntoBody, Kind,
+    PollBody, Void,
+};
+
+#[cfg(feature = "rtn")]
+pub use crate::body::BodyExtRtn;

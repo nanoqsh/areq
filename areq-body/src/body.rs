@@ -4,60 +4,25 @@ use {
     std::{
         future::{self, IntoFuture},
         io::Error,
+        ops::DerefMut,
         pin::Pin,
+        task::{Context, Poll},
     },
 };
-
-pub trait IntoBody {
-    type Chunk: Buf;
-    type Body: Body<Chunk = Self::Chunk>;
-
-    fn into_body(self) -> Self::Body;
-}
 
 pub trait Body {
     type Chunk: Buf;
 
     #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
-
     fn kind(&self) -> Kind;
-
     fn is_end(&self) -> bool;
-}
-
-impl<B> IntoBody for B
-where
-    B: Body,
-{
-    type Chunk = B::Chunk;
-    type Body = Self;
-
-    #[inline]
-    fn into_body(self) -> Self::Body {
-        self
-    }
 }
 
 pub enum Kind {
     Empty,
     Full,
     Chunked,
-}
-
-#[inline]
-pub async fn take_full<B>(body: B) -> Result<B::Chunk, Error>
-where
-    B: IntoBody,
-{
-    let mut body = body.into_body();
-    debug_assert!(matches!(body.kind(), Kind::Full), "body type must be full");
-    debug_assert!(!body.is_end(), "the body must have only one chunk");
-
-    let chunk = body.chunk().await.expect("full body should have content");
-    debug_assert!(body.is_end(), "the body must have only one chunk");
-
-    chunk
 }
 
 pub enum Void {}
@@ -76,6 +41,28 @@ impl Buf for Void {
     #[inline]
     fn advance(&mut self, _: usize) {
         match *self {}
+    }
+}
+
+impl<B> Body for &mut B
+where
+    B: Body,
+{
+    type Chunk = B::Chunk;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        (**self).chunk().await
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        (**self).kind()
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        (**self).is_end()
     }
 }
 
@@ -218,12 +205,271 @@ where
     }
 }
 
+pub trait IntoBody {
+    type Chunk: Buf;
+    type Body: Body<Chunk = Self::Chunk>;
+
+    fn into_body(self) -> Self::Body;
+}
+
+impl<B> IntoBody for B
+where
+    B: Body,
+{
+    type Chunk = B::Chunk;
+    type Body = Self;
+
+    #[inline]
+    fn into_body(self) -> Self::Body {
+        self
+    }
+}
+
+#[inline]
+pub async fn take_full<B>(body: B) -> Result<B::Chunk, Error>
+where
+    B: IntoBody,
+{
+    let mut body = body.into_body();
+    debug_assert!(matches!(body.kind(), Kind::Full), "body type must be full");
+    debug_assert!(!body.is_end(), "the body must have only one chunk");
+
+    let chunk = body.chunk().await.expect("full body should have content");
+    debug_assert!(body.is_end(), "the body must have only one chunk");
+
+    chunk
+}
+
+pub trait PollBody {
+    type Chunk: Buf;
+
+    fn poll_chunk(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Self::Chunk, Error>>>;
+
+    fn kind(&self) -> Kind;
+    fn is_end(&self) -> bool;
+}
+
+impl<P> Body for Pin<P>
+where
+    P: DerefMut<Target: PollBody>,
+{
+    type Chunk = <P::Target as PollBody>::Chunk;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        future::poll_fn(|cx| self.as_mut().poll_chunk(cx)).await
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        self.as_ref().kind()
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        self.as_ref().is_end()
+    }
+}
+
+pub type BoxedBodySend<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
+pub type BoxedBody<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
+
+pub trait BodyExt: Body {
+    #[inline]
+    fn reader(self) -> impl AsyncRead
+    where
+        Self: Sized,
+    {
+        Reader {
+            body: self.into_poll_body(),
+            chunk: Next::Empty,
+        }
+    }
+
+    #[inline]
+    fn into_poll_body(self) -> impl PollBody<Chunk = Self::Chunk>
+    where
+        Self: Sized,
+    {
+        unfold(self, |mut body| async {
+            let res = body.chunk().await?;
+            Some((body, res))
+        })
+    }
+
+    #[inline]
+    fn boxed<'body>(self) -> BoxedBody<'body, Self::Chunk>
+    where
+        Self: Sized + 'body,
+    {
+        Box::pin(self.into_poll_body())
+    }
+}
+
+impl<B> BodyExt for B where B: Body {}
+
+#[cfg(feature = "rtn")]
+include!("body_ext_rtn.rs");
+
+#[inline]
+fn unfold<B, F, U>(body: B, f: F) -> Unfold<B, F, U>
+where
+    B: Body,
+    F: FnMut(B) -> U,
+    U: Future<Output = Option<(B, Result<B::Chunk, Error>)>>,
+{
+    Unfold {
+        body: Some(body),
+        f,
+        fu: None,
+    }
+}
+
+pin_project_lite::pin_project! {
+    struct Unfold<B, F, U> {
+        body: Option<B>,
+        f: F,
+        #[pin]
+        fu: Option<U>,
+    }
+}
+
+impl<B, F, U> PollBody for Unfold<B, F, U>
+where
+    B: Body,
+    F: FnMut(B) -> U,
+    U: Future<Output = Option<(B, Result<B::Chunk, Error>)>>,
+{
+    type Chunk = B::Chunk;
+
+    #[inline]
+    fn poll_chunk(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Self::Chunk, Error>>> {
+        let mut me = self.project();
+        if let Some(body) = me.body.take() {
+            me.fu.set(Some((me.f)(body)));
+        }
+
+        let fu = me.fu.as_pin_mut().expect("poll after `None` was returned");
+        match fu.poll(cx) {
+            Poll::Ready(Some((body, res))) => {
+                *me.body = Some(body);
+                Poll::Ready(Some(res))
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        self.body
+            .as_ref()
+            .expect("called before the chunk retrieval was completed")
+            .kind()
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        self.body
+            .as_ref()
+            .expect("called before the chunk retrieval was completed")
+            .is_end()
+    }
+}
+
+pin_project_lite::pin_project! {
+     struct Reader<B, C> {
+        #[pin]
+        body: B,
+        chunk: Next<C>,
+    }
+}
+
+impl<B> AsyncRead for Reader<B, B::Chunk>
+where
+    B: PollBody,
+{
+    #[inline]
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize, Error>> {
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
+        let me = self.project();
+
+        if !me.chunk.has_remaining() {
+            match me.body.poll_chunk(cx) {
+                Poll::Ready(Some(Ok(c))) => {
+                    if c.has_remaining() {
+                        *me.chunk = Next::Buf(c);
+                    } else {
+                        // if next bytes is empty skip this iteration and reschedule
+                        cx.waker().wake_by_ref();
+                        return Poll::Pending;
+                    }
+                }
+                Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
+                Poll::Ready(None) => return Poll::Ready(Ok(0)),
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+
+        let n = usize::min(me.chunk.remaining(), buf.len());
+        me.chunk.copy_to_slice(&mut buf[..n]);
+        Poll::Ready(Ok(n))
+    }
+}
+
+enum Next<B> {
+    Buf(B),
+    Empty,
+}
+
+impl<B> Buf for Next<B>
+where
+    B: Buf,
+{
+    #[inline]
+    fn remaining(&self) -> usize {
+        match self {
+            Self::Buf(b) => b.remaining(),
+            Self::Empty => 0,
+        }
+    }
+
+    #[inline]
+    fn chunk(&self) -> &[u8] {
+        match self {
+            Self::Buf(b) => b.chunk(),
+            Self::Empty => &[],
+        }
+    }
+
+    #[inline]
+    fn advance(&mut self, cnt: usize) {
+        match self {
+            Self::Buf(b) => b.advance(cnt),
+            Self::Empty => debug_assert_eq!(cnt, 0, "can't advance further"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use {
         super::*,
         futures_lite::{future, stream},
-        std::io::ErrorKind,
+        std::{io::ErrorKind, pin},
     };
 
     #[test]
@@ -272,5 +518,45 @@ mod tests {
                 None => unreachable!(),
             }
         }
+    }
+
+    #[test]
+    fn reader() {
+        let src = ["h", "e", "ll", "o"].map(str::as_bytes).map(Ok);
+        let body = Chunked(stream::iter(src));
+        let mut reader = pin::pin!(body.reader());
+
+        let mut out = String::new();
+        let res = future::block_on(reader.read_to_string(&mut out));
+        assert_eq!(res.ok(), Some(5));
+        assert_eq!(out, "hello");
+    }
+
+    #[test]
+    fn into_poll_body() {
+        let src = "hi";
+        let body = Full::new(src.as_bytes());
+        let poll_body = pin::pin!(body.into_poll_body());
+        let actual = future::block_on(take_full(poll_body));
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
+    }
+
+    #[test]
+    fn boxed() {
+        let src = "hi";
+        let body = Full::new(src.as_bytes());
+        let boxed_body = body.boxed();
+        let actual = future::block_on(take_full(boxed_body));
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
+    }
+
+    #[cfg(feature = "rtn")]
+    #[test]
+    fn boxed_send() {
+        let src = "hi";
+        let body = Full::new(src.as_bytes());
+        let boxed_body = body.boxed_send();
+        let actual = future::block_on(take_full(boxed_body));
+        assert_eq!(actual.ok(), Some(src.as_bytes()));
     }
 }
