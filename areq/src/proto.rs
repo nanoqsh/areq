@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{Body, BodyExt, BoxedBody, IntoBody},
+        body::{Body, BodyExt, BoxedLocal, IntoBody},
         http2,
     },
     bytes::Bytes,
@@ -262,7 +262,7 @@ impl<B> From<http::Request<B>> for Request<B> {
 }
 
 #[derive(Debug)]
-pub struct Response<B = BoxedBody<'static, Bytes>> {
+pub struct Response<B = BoxedLocal<'static, Bytes>> {
     head: response::Parts,
     body: B,
 }
@@ -305,7 +305,7 @@ impl<B> Response<B> {
     {
         Response {
             head: self.head,
-            body: self.body.boxed(),
+            body: self.body.boxed_local(),
         }
     }
 

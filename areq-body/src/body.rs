@@ -274,8 +274,8 @@ where
     }
 }
 
-pub type BoxedBodySend<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
-pub type BoxedBody<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
+pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
+pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 
 pub trait BodyExt: Body {
     #[inline]
@@ -301,7 +301,7 @@ pub trait BodyExt: Body {
     }
 
     #[inline]
-    fn boxed<'body>(self) -> BoxedBody<'body, Self::Chunk>
+    fn boxed_local<'body>(self) -> BoxedLocal<'body, Self::Chunk>
     where
         Self: Sized + 'body,
     {
@@ -556,20 +556,20 @@ mod tests {
     }
 
     #[test]
-    fn boxed() {
+    fn boxed_local() {
         let src = "hi";
         let body = Full::new(src.as_bytes());
-        let boxed_body = body.boxed();
+        let boxed_body = body.boxed_local();
         let actual = future::block_on(take_full(boxed_body));
         assert_eq!(actual.ok(), Some(src.as_bytes()));
     }
 
     #[cfg(feature = "rtn")]
     #[test]
-    fn boxed_send() {
+    fn boxed() {
         let src = "hi";
         let body = Full::new(src.as_bytes());
-        let boxed_body = body.boxed_send();
+        let boxed_body = body.boxed();
         let actual = future::block_on(take_full(boxed_body));
         assert_eq!(actual.ok(), Some(src.as_bytes()));
     }

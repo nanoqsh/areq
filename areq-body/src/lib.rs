@@ -10,8 +10,8 @@ pub mod prelude {
 }
 
 pub use crate::body::{
-    take_full, Body, BodyExt, BoxedBody, BoxedBodySend, Chunked, Deferred, Full, IntoBody, Kind,
-    PollBody, Void,
+    take_full, Body, BodyExt, Boxed, BoxedLocal, Chunked, Deferred, Full, IntoBody, Kind, PollBody,
+    Void,
 };
 
 #[cfg(feature = "rtn")]
