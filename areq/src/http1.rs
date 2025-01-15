@@ -5,14 +5,8 @@ use {
         tls::Negotiate,
     },
     areq_h1::Config,
-    bytes::Bytes,
     futures_lite::prelude::*,
     http::{header, HeaderValue, Version},
-    std::{
-        io,
-        pin::Pin,
-        task::{Context, Poll},
-    },
 };
 
 #[derive(Clone, Default)]
@@ -84,30 +78,11 @@ impl<B> Client<B> for H1<B>
 where
     B: IntoBody,
 {
-    type Body = BodyH1;
+    type Body = areq_h1::FetchBody;
 
     async fn send(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
         self.prepare(&mut req);
-
-        let res = self.reqs.send(req.into()).await?.map(|body| BodyH1 {
-            body: body.stream(),
-        });
-
+        let res = self.reqs.send(req.into()).await?;
         Ok(Response::new(res))
-    }
-}
-
-pin_project_lite::pin_project! {
-    pub struct BodyH1 {
-        #[pin]
-        body: areq_h1::BodyStream,
-    }
-}
-
-impl Stream for BodyH1 {
-    type Item = Result<Bytes, io::Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.project().body.poll_next(cx).map_err(io::Error::from)
     }
 }

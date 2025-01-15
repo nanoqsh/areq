@@ -533,6 +533,20 @@ mod tests {
     }
 
     #[test]
+    fn reader_partial() {
+        let src = ["h", "e", "ll", "o"].map(str::as_bytes).map(Ok);
+        let body = Chunked(stream::iter(src));
+        let mut reader = pin::pin!(body.reader());
+
+        for (size, part) in [(1, b"h\0"), (1, b"e\0"), (2, b"ll"), (1, b"o\0")] {
+            let mut buf = [0; 2];
+            let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
+            assert_eq!(n, size, "failed to read {part:?}");
+            assert_eq!(&buf, part);
+        }
+    }
+
+    #[test]
     fn into_poll_body() {
         let src = "hi";
         let body = Full::new(src.as_bytes());

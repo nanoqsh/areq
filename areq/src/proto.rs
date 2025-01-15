@@ -1,5 +1,8 @@
 use {
-    crate::{body::IntoBody, http2},
+    crate::{
+        body::{Body, BodyExt, BoxedBody, IntoBody},
+        http2,
+    },
     bytes::Bytes,
     futures_lite::prelude::*,
     http::{request, response, uri::Scheme, HeaderMap, Method, StatusCode, Uri, Version},
@@ -7,8 +10,6 @@ use {
         borrow::Cow,
         error, fmt,
         io::{self, ErrorKind},
-        pin::Pin,
-        task::{Context, Poll},
     },
     url::Host,
 };
@@ -189,32 +190,10 @@ impl error::Error for Error {
 }
 
 pub trait Client<B> {
-    type Body: BodyStream;
+    type Body: Body<Chunk = Bytes>;
 
     #[expect(async_fn_in_trait)]
     async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
-}
-
-/// A body streaming trait alias.
-pub trait BodyStream: Stream<Item = Result<Bytes, io::Error>> + 'static {}
-impl<B> BodyStream for B where B: Stream<Item = Result<Bytes, io::Error>> + 'static {}
-
-pub struct BoxedBody(Pin<Box<dyn BodyStream>>);
-
-impl fmt::Debug for BoxedBody {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Body").field(&"..").finish()
-    }
-}
-
-impl Stream for BoxedBody {
-    type Item = Result<Bytes, io::Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.get_mut() {
-            Self(stream) => Pin::new(stream).poll_next(cx),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -283,12 +262,17 @@ impl<B> From<http::Request<B>> for Request<B> {
 }
 
 #[derive(Debug)]
-pub struct Response<B = BoxedBody> {
+pub struct Response<B = BoxedBody<'static, Bytes>> {
     head: response::Parts,
     body: B,
 }
 
 impl<B> Response<B> {
+    pub fn new(res: http::Response<B>) -> Self {
+        let (head, body) = res.into_parts();
+        Self { head, body }
+    }
+
     pub fn status(&self) -> StatusCode {
         self.head.status
     }
@@ -314,81 +298,22 @@ impl<B> Response<B> {
             body: f(self.body),
         }
     }
-}
 
-impl<B> Response<B>
-where
-    B: BodyStream,
-{
-    pub fn new(res: http::Response<B>) -> Self {
-        let (head, body) = res.into_parts();
-        Self { head, body }
-    }
-
-    pub fn boxed(self) -> Response {
+    pub fn boxed(self) -> Response
+    where
+        B: Body<Chunk = Bytes> + 'static,
+    {
         Response {
             head: self.head,
-            body: BoxedBody(Box::pin(self.body)),
+            body: self.body.boxed(),
         }
     }
 
-    pub fn body(self) -> B {
+    pub fn body(self) -> B
+    where
+        B: Body,
+    {
         self.body
-    }
-
-    pub fn body_reader(self) -> impl AsyncRead {
-        use std::{
-            pin::Pin,
-            task::{Context, Poll},
-        };
-
-        pin_project_lite::pin_project! {
-            struct Reader<S> {
-                #[pin]
-                stream: S,
-                bytes: Bytes,
-            }
-        }
-
-        impl<S> AsyncRead for Reader<S>
-        where
-            S: Stream<Item = Result<Bytes, io::Error>>,
-        {
-            fn poll_read(
-                self: Pin<&mut Self>,
-                cx: &mut Context<'_>,
-                buf: &mut [u8],
-            ) -> Poll<Result<usize, io::Error>> {
-                if buf.is_empty() {
-                    return Poll::Ready(Ok(0));
-                }
-
-                let me = self.project();
-
-                if me.bytes.is_empty() {
-                    match me.stream.poll_next(cx) {
-                        Poll::Ready(Some(Ok(b))) if b.is_empty() => {
-                            // if next bytes is empty skip this iteration and reschedule
-                            cx.waker().wake_by_ref();
-                            return Poll::Pending;
-                        }
-                        Poll::Ready(Some(Ok(b))) => *me.bytes = b,
-                        Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
-                        Poll::Ready(None) => return Poll::Ready(Ok(0)),
-                        Poll::Pending => return Poll::Pending,
-                    }
-                }
-
-                let n = usize::min(me.bytes.len(), buf.len());
-                let head = me.bytes.split_to(n);
-                buf[..n].copy_from_slice(&head);
-                Poll::Ready(Ok(n))
-            }
-        }
-
-        let stream = self.body();
-        let bytes = Bytes::new();
-        Reader { stream, bytes }
     }
 }
 
@@ -402,58 +327,5 @@ impl<B> From<http::Response<B>> for Response<B> {
     fn from(res: http::Response<B>) -> Self {
         let (head, body) = res.into_parts();
         Self { head, body }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use {
-        super::*,
-        futures_lite::{future, io, stream},
-    };
-
-    #[test]
-    fn body_into_stream() {
-        let body = stream::iter(["foo", "bar", "baz"])
-            .map(|part| Ok::<_, io::Error>(Bytes::copy_from_slice(part.as_bytes())));
-
-        let res = Response::new(http::Response::new(body));
-        let actual: Vec<_> = future::block_on(
-            res.body()
-                .map(|res| res.expect("all parts is ok"))
-                .collect(),
-        );
-
-        assert_eq!(actual, ["foo", "bar", "baz"]);
-    }
-
-    #[test]
-    fn body_into_reader() {
-        let body = stream::iter(["foo", "bar", "baz"])
-            .map(|part| Ok::<_, io::Error>(Bytes::copy_from_slice(part.as_bytes())));
-
-        let res = Response::new(http::Response::new(body));
-        let mut actual = vec![];
-        future::block_on(io::copy(res.body_reader(), &mut actual)).expect("all parts is ok");
-        assert_eq!(actual, b"foobarbaz");
-    }
-
-    #[test]
-    fn body_into_reader_partial() {
-        let body = stream::iter(["foo", "bar", "baz"])
-            .map(|part| Ok::<_, io::Error>(Bytes::copy_from_slice(part.as_bytes())));
-
-        let res = Response::new(http::Response::new(body));
-        let mut reader = res.body_reader();
-
-        let mut buf = [0; 2];
-        let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
-        assert_eq!(n, 2);
-        assert_eq!(&buf, b"fo");
-
-        let mut buf = [0; 2];
-        let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
-        assert_eq!(n, 1);
-        assert_eq!(&buf, b"o\0");
     }
 }

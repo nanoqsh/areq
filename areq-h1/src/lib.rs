@@ -11,7 +11,7 @@ pub mod body {
 }
 
 pub use crate::{
-    client::{BodyStream, Config, FetchBody, Requester},
+    client::{Config, FetchBody, Requester},
     error::Error,
     handler::ReadStrategy,
 };

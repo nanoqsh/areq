@@ -3,9 +3,10 @@ use {
         proto::{Client, Error, Handshake, Request, Response, Session},
         tls::Negotiate,
     },
-    areq_body::IntoBody,
+    areq_body::{Body, IntoBody, Kind},
     futures_lite::prelude::*,
     std::{
+        io,
         pin::Pin,
         task::{Context, Poll},
     },
@@ -124,17 +125,31 @@ where
     }
 }
 
-impl<L, R> Stream for Or<L, R>
+impl<L, R> Body for Or<L, R>
 where
-    L: Stream,
-    R: Stream<Item = L::Item>,
+    L: Body,
+    R: Body<Chunk = L::Chunk>,
 {
-    type Item = L::Item;
+    type Chunk = L::Chunk;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.project() {
-            PinnedOr::Lhs { l } => l.poll_next(cx),
-            PinnedOr::Rhs { r } => r.poll_next(cx),
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, io::Error>> {
+        match self {
+            Self::Lhs { l } => l.chunk().await,
+            Self::Rhs { r } => r.chunk().await,
+        }
+    }
+
+    fn kind(&self) -> Kind {
+        match self {
+            Self::Lhs { l } => l.kind(),
+            Self::Rhs { r } => r.kind(),
+        }
+    }
+
+    fn is_end(&self) -> bool {
+        match self {
+            Self::Lhs { l } => l.is_end(),
+            Self::Rhs { r } => r.is_end(),
         }
     }
 }

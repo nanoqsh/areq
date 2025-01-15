@@ -10,9 +10,8 @@ use {
     futures_lite::prelude::*,
     http::{header, HeaderValue, Request, Response},
     std::{
-        fmt,
+        fmt, io,
         pin::{self, Pin},
-        task::{Context, Poll},
     },
 };
 
@@ -203,11 +202,6 @@ impl FetchBody {
     pub async fn frame(&self) -> Result<Bytes, Error> {
         self.fetch.recv().await.map_err(|_| Error::Closed)?
     }
-
-    #[inline]
-    pub fn stream(self) -> BodyStream {
-        BodyStream { fetch: self.fetch }
-    }
 }
 
 impl fmt::Debug for FetchBody {
@@ -217,23 +211,31 @@ impl fmt::Debug for FetchBody {
     }
 }
 
-pin_project_lite::pin_project! {
-    pub struct BodyStream {
-        #[pin]
-        fetch: Receiver<Result<Bytes, Error>>,
-    }
-}
-
-impl Stream for BodyStream {
-    type Item = Result<Bytes, Error>;
+impl Body for FetchBody {
+    type Chunk = Bytes;
 
     #[inline]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.project().fetch.poll_next(cx) {
-            Poll::Ready(Some(Ok(bytes))) if bytes.is_empty() => Poll::Ready(None),
-            Poll::Ready(o) => Poll::Ready(o),
-            Poll::Pending => Poll::Pending,
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, io::Error>> {
+        match self.frame().await {
+            Ok(chunk) => {
+                if chunk.is_empty() {
+                    None
+                } else {
+                    Some(Ok(chunk))
+                }
+            }
+            Err(e) => Some(Err(e.into())),
         }
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Chunked
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        false
     }
 }
 

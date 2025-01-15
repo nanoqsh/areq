@@ -74,7 +74,7 @@ where
     H: Handshake<TcpStream>,
 {
     use {
-        areq::{Address, Client, Request, Session},
+        areq::{body::BodyExt, Address, Client, Request, Session},
         async_net::TcpStream,
         futures_lite::{future, io::BufReader, AsyncBufReadExt, StreamExt},
     };
@@ -105,7 +105,7 @@ where
         println!();
 
         // print response body
-        let lines = BufReader::new(res.body_reader()).lines();
+        let lines = BufReader::new(res.body().reader()).lines();
         let mut stdout = io::stdout();
 
         let mut stream = pin::pin!(lines);

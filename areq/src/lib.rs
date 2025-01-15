@@ -10,9 +10,6 @@ pub mod body {
 }
 
 pub use {
-    crate::proto::{
-        Address, BodyStream, BoxedBody, Client, Error, Handshake, InvalidUri, Request, Response,
-        Session,
-    },
+    crate::proto::{Address, Client, Error, Handshake, InvalidUri, Request, Response, Session},
     http,
 };

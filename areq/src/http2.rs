@@ -10,11 +10,7 @@ use {
     futures_lite::prelude::*,
     h2::client,
     http::{header, HeaderValue, Version},
-    std::{
-        future, io,
-        pin::Pin,
-        task::{Context, Poll},
-    },
+    std::{future, io},
 };
 
 #[derive(Clone, Default)]
@@ -196,11 +192,20 @@ where
 
 pub struct BodyH2(h2::RecvStream);
 
-impl Stream for BodyH2 {
-    type Item = Result<Bytes, io::Error>;
+impl Body for BodyH2 {
+    type Chunk = Bytes;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.0.poll_data(cx).map_err(into_io_error)
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, io::Error>> {
+        let res = future::poll_fn(|cx| self.0.poll_data(cx)).await?;
+        Some(res.map_err(into_io_error))
+    }
+
+    fn kind(&self) -> Kind {
+        Kind::Chunked
+    }
+
+    fn is_end(&self) -> bool {
+        false
     }
 }
 
