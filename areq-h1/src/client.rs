@@ -143,7 +143,7 @@ where
         let (give, fetch) = async_channel::bounded(16);
         let mut state = match process.await {
             Ok((res, state)) => {
-                let res = res.map(|_| FetchBody { fetch });
+                let res = res.map(|_| FetchBody { fetch, state });
                 _ = conn.send_res.send(Ok(res)).await;
                 state
             }
@@ -165,13 +165,15 @@ where
             };
 
             let error = frame.is_err();
-            if give.send(frame).await.is_err() || error || end {
+            let next = Next { frame, state };
+            if give.send(next).await.is_err() || error || end {
                 break;
             }
         }
     }
 }
 
+#[derive(Clone, Copy)]
 enum ReadBodyState {
     Remaining(usize),
     Chunked,
@@ -193,14 +195,22 @@ impl<B> Requester<B> {
     }
 }
 
+struct Next {
+    frame: Result<Bytes, Error>,
+    state: ReadBodyState,
+}
+
 pub struct FetchBody {
-    fetch: Receiver<Result<Bytes, Error>>,
+    fetch: Receiver<Next>,
+    state: ReadBodyState,
 }
 
 impl FetchBody {
     #[inline]
-    pub async fn frame(&self) -> Result<Bytes, Error> {
-        self.fetch.recv().await.map_err(|_| Error::Closed)?
+    pub async fn frame(&mut self) -> Result<Bytes, Error> {
+        let Next { frame, state } = self.fetch.recv().await.map_err(|_| Error::Closed)?;
+        self.state = state;
+        frame
     }
 }
 
@@ -230,12 +240,15 @@ impl Body for FetchBody {
 
     #[inline]
     fn kind(&self) -> Kind {
-        Kind::Chunked
+        match self.state {
+            ReadBodyState::Remaining(_) => Kind::Full,
+            ReadBodyState::Chunked => Kind::Chunked,
+        }
     }
 
     #[inline]
     fn is_end(&self) -> bool {
-        false
+        matches!(self.state, ReadBodyState::Remaining(0))
     }
 }
 

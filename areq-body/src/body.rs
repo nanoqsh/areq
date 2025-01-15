@@ -19,6 +19,7 @@ pub trait Body {
     fn is_end(&self) -> bool;
 }
 
+#[derive(Clone, Copy)]
 pub enum Kind {
     Empty,
     Full,

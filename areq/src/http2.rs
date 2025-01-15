@@ -196,7 +196,7 @@ impl Body for BodyH2 {
     type Chunk = Bytes;
 
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, io::Error>> {
-        let res = future::poll_fn(|cx| self.0.poll_data(cx)).await?;
+        let res = self.0.data().await?;
         Some(res.map_err(into_io_error))
     }
 
@@ -205,7 +205,7 @@ impl Body for BodyH2 {
     }
 
     fn is_end(&self) -> bool {
-        false
+        self.0.is_end_stream()
     }
 }
 

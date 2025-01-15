@@ -69,7 +69,7 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
         req.headers_mut().insert(header::HOST, host_value);
 
         // print response head
-        let res = reqs.send(req).await?;
+        let mut res = reqs.send(req).await?;
         let version = res.version();
         let status = res.status();
         println!("{version:?} {status}");
@@ -80,7 +80,7 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
         println!();
 
         // print response body
-        let body = res.body();
+        let body = res.body_mut();
         let mut stdout = io::stdout();
         loop {
             let frame = body.frame().await?;

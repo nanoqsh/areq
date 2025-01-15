@@ -1,6 +1,6 @@
 pub trait BodyExtRtn: Body {
     #[inline]
-    fn boxed<'body>(self) -> BoxedBodySend<'body, Self::Chunk>
+    fn boxed<'body>(self) -> Boxed<'body, Self::Chunk>
     where
         Self: Body<chunk(..): Send> + Send + Sized + 'body,
     {
