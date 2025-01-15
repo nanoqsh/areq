@@ -21,7 +21,6 @@ pub trait Body {
 
 #[derive(Clone, Copy)]
 pub enum Kind {
-    Empty,
     Full,
     Chunked,
 }
@@ -67,22 +66,13 @@ where
     }
 }
 
-impl Body for () {
-    type Chunk = Void;
+impl IntoBody for () {
+    type Chunk = <Self::Body as Body>::Chunk;
+    type Body = Full<&'static [u8]>;
 
     #[inline]
-    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
-        None
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Empty
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        true
+    fn into_body(self) -> Self::Body {
+        Full::new(&[])
     }
 }
 
@@ -286,7 +276,7 @@ pub trait BodyExt: Body {
     {
         Reader {
             body: self.into_poll_body(),
-            chunk: Next::Empty,
+            state: State::Start,
         }
     }
 
@@ -356,13 +346,21 @@ where
             me.fu.set(Some((me.f)(body)));
         }
 
-        let fu = me.fu.as_pin_mut().expect("poll after `None` was returned");
+        let fu = me
+            .fu
+            .as_mut()
+            .as_pin_mut()
+            .expect("poll after `None` was returned");
+
         match fu.poll(cx) {
             Poll::Ready(Some((body, res))) => {
                 *me.body = Some(body);
                 Poll::Ready(Some(res))
             }
-            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(None) => {
+                me.fu.set(None);
+                Poll::Ready(None)
+            }
             Poll::Pending => Poll::Pending,
         }
     }
@@ -388,7 +386,7 @@ pin_project_lite::pin_project! {
      struct Reader<B, C> {
         #[pin]
         body: B,
-        chunk: Next<C>,
+        state: State<C>,
     }
 }
 
@@ -402,17 +400,21 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize, Error>> {
+        let me = self.project();
+
+        if let State::End = me.state {
+            return Poll::Ready(Ok(0));
+        }
+
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
 
-        let me = self.project();
-
-        if !me.chunk.has_remaining() {
+        if !me.state.has_remaining() {
             match me.body.poll_chunk(cx) {
                 Poll::Ready(Some(Ok(c))) => {
                     if c.has_remaining() {
-                        *me.chunk = Next::Buf(c);
+                        *me.state = State::Next(c);
                     } else {
                         // if next bytes is empty skip this iteration and reschedule
                         cx.waker().wake_by_ref();
@@ -420,47 +422,53 @@ where
                     }
                 }
                 Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
-                Poll::Ready(None) => return Poll::Ready(Ok(0)),
+                Poll::Ready(None) => {
+                    *me.state = State::End;
+                    return Poll::Ready(Ok(0));
+                }
                 Poll::Pending => return Poll::Pending,
             }
         }
 
-        let n = usize::min(me.chunk.remaining(), buf.len());
-        me.chunk.copy_to_slice(&mut buf[..n]);
+        let n = usize::min(me.state.remaining(), buf.len());
+        debug_assert_ne!(n, 0, "at least one byte must be read");
+
+        me.state.copy_to_slice(&mut buf[..n]);
         Poll::Ready(Ok(n))
     }
 }
 
-enum Next<B> {
-    Buf(B),
-    Empty,
+enum State<B> {
+    Start,
+    Next(B),
+    End,
 }
 
-impl<B> Buf for Next<B>
+impl<B> Buf for State<B>
 where
     B: Buf,
 {
     #[inline]
     fn remaining(&self) -> usize {
         match self {
-            Self::Buf(b) => b.remaining(),
-            Self::Empty => 0,
+            Self::Next(b) => b.remaining(),
+            Self::Start | Self::End => 0,
         }
     }
 
     #[inline]
     fn chunk(&self) -> &[u8] {
         match self {
-            Self::Buf(b) => b.chunk(),
-            Self::Empty => &[],
+            Self::Next(b) => b.chunk(),
+            Self::Start | Self::End => &[],
         }
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
         match self {
-            Self::Buf(b) => b.advance(cnt),
-            Self::Empty => debug_assert_eq!(cnt, 0, "can't advance further"),
+            Self::Next(b) => b.advance(cnt),
+            Self::Start | Self::End => debug_assert_eq!(cnt, 0, "can't advance further"),
         }
     }
 }
@@ -539,7 +547,13 @@ mod tests {
         let body = Chunked(stream::iter(src));
         let mut reader = pin::pin!(body.reader());
 
-        for (size, part) in [(1, b"h\0"), (1, b"e\0"), (2, b"ll"), (1, b"o\0")] {
+        for (size, part) in [
+            (1, b"h\0"),
+            (1, b"e\0"),
+            (2, b"ll"),
+            (1, b"o\0"),
+            (0, b"\0\0"),
+        ] {
             let mut buf = [0; 2];
             let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
             assert_eq!(n, size, "failed to read {part:?}");

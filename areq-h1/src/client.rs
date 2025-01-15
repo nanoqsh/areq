@@ -89,14 +89,6 @@ where
             let mut body = body.into_body();
 
             match body.kind() {
-                Kind::Empty => {
-                    let zero_len = const { HeaderValue::from_static("0") };
-
-                    head.headers_mut().insert(header::CONTENT_LENGTH, zero_len);
-                    headers::remove_chunked_encoding(head.headers_mut());
-
-                    conn.io.write_header(&head).await?;
-                }
                 Kind::Full => {
                     let full = body::take_full(body).await?;
 
@@ -143,7 +135,7 @@ where
         let (give, fetch) = async_channel::bounded(16);
         let mut state = match process.await {
             Ok((res, state)) => {
-                let res = res.map(|_| FetchBody { fetch, state });
+                let res = res.map(|_| FetchBody { fetch, end: false });
                 _ = conn.send_res.send(Ok(res)).await;
                 state
             }
@@ -165,7 +157,7 @@ where
             };
 
             let error = frame.is_err();
-            let next = Next { frame, state };
+            let next = Next { frame, end };
             if give.send(next).await.is_err() || error || end {
                 break;
             }
@@ -197,19 +189,19 @@ impl<B> Requester<B> {
 
 struct Next {
     frame: Result<Bytes, Error>,
-    state: ReadBodyState,
+    end: bool,
 }
 
 pub struct FetchBody {
     fetch: Receiver<Next>,
-    state: ReadBodyState,
+    end: bool,
 }
 
 impl FetchBody {
     #[inline]
     pub async fn frame(&mut self) -> Result<Bytes, Error> {
-        let Next { frame, state } = self.fetch.recv().await.map_err(|_| Error::Closed)?;
-        self.state = state;
+        let Next { frame, end } = self.fetch.recv().await.map_err(|_| Error::Closed)?;
+        self.end = end;
         frame
     }
 }
@@ -240,15 +232,12 @@ impl Body for FetchBody {
 
     #[inline]
     fn kind(&self) -> Kind {
-        match self.state {
-            ReadBodyState::Remaining(_) => Kind::Full,
-            ReadBodyState::Chunked => Kind::Chunked,
-        }
+        Kind::Chunked
     }
 
     #[inline]
     fn is_end(&self) -> bool {
-        matches!(self.state, ReadBodyState::Remaining(0))
+        self.end
     }
 }
 
