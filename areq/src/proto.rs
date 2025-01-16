@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{Body, BodyExt, BoxedLocal, IntoBody},
+        body::{prelude::*, BoxedLocal},
         http2,
     },
     bytes::Bytes,

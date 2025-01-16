@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{self, Body, Hint, IntoBody, Kind},
+        body::{prelude::*, Kind},
         io::Io,
         proto::Client,
         tls::Negotiate,
@@ -136,8 +136,12 @@ where
 
             match size {
                 Hint::Full { .. } => {
-                    let full = body::take_full(body).await?;
-                    send_body.send_data(Flow::Next(full), true)?;
+                    let flow = match body.take_full().await? {
+                        Some(chunk) => Flow::Next(chunk),
+                        None => Flow::End,
+                    };
+
+                    send_body.send_data(flow, true)?;
                 }
                 Hint::Chunked { .. } => {
                     while let Some(chunk) = body.chunk().await {

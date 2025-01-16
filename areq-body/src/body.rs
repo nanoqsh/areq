@@ -4,6 +4,7 @@ use {
     std::{
         future::{self, IntoFuture},
         io::Error,
+        mem,
         ops::DerefMut,
         pin::Pin,
         task::{Context, Poll},
@@ -38,6 +39,19 @@ pub enum Hint {
 }
 
 impl Hint {
+    /// Returns `true` if the hint is [`Full`]
+    #[inline]
+    pub fn is_full(&self) -> bool {
+        matches!(self, Self::Full { .. })
+    }
+
+    /// Returns `true` if the hint is [`Chunked`]
+    #[inline]
+    pub fn is_chunked(&self) -> bool {
+        matches!(self, Self::Chunked { .. })
+    }
+
+    #[inline]
     pub fn is_end(self) -> bool {
         match self {
             Self::Full { len } => len == Some(0),
@@ -91,33 +105,88 @@ where
     }
 }
 
-impl IntoBody for () {
-    type Chunk = <Self::Body as Body>::Chunk;
-    type Body = Full<&'static [u8]>;
+impl Body for () {
+    type Chunk = &'static [u8];
 
     #[inline]
-    fn into_body(self) -> Self::Body {
-        Full::new(&[])
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        None
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Full
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        Hint::Full { len: Some(0) }
     }
 }
 
-impl<'slice> IntoBody for &'slice [u8] {
-    type Chunk = <Self::Body as Body>::Chunk;
-    type Body = Full<&'slice [u8]>;
+impl<'slice> Body for &'slice [u8] {
+    type Chunk = &'slice [u8];
 
     #[inline]
-    fn into_body(self) -> Self::Body {
-        Full::new(self)
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(Ok(mem::take(self)))
+        }
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Full
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: Some(self.len() as u64),
+        }
     }
 }
 
-impl<'str> IntoBody for &'str str {
-    type Chunk = <Self::Body as Body>::Chunk;
-    type Body = Full<&'str [u8]>;
+impl<'str> Body for &'str str {
+    type Chunk = &'str [u8];
 
     #[inline]
-    fn into_body(self) -> Self::Body {
-        Full::new(self.as_bytes())
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        if self.is_empty() {
+            None
+        } else {
+            let s = mem::take(self);
+            Some(Ok(s.as_bytes()))
+        }
+    }
+
+    #[inline]
+    fn kind(&self) -> Kind {
+        Kind::Full
+    }
+
+    #[inline]
+    fn is_end(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: Some(self.len() as u64),
+        }
     }
 }
 
@@ -151,6 +220,7 @@ where
         self.0.is_none()
     }
 
+    #[inline]
     fn size_hint(&self) -> Hint {
         Hint::Full {
             len: Some(
@@ -205,6 +275,7 @@ where
         self.0.is_none()
     }
 
+    #[inline]
     fn size_hint(&self) -> Hint {
         Hint::Full {
             len: if self.0.is_none() { Some(0) } else { None },
@@ -237,6 +308,7 @@ where
         upper_bound == Some(0)
     }
 
+    #[inline]
     fn size_hint(&self) -> Hint {
         let (_, upper_bound) = self.0.size_hint();
         Hint::Chunked {
@@ -263,25 +335,6 @@ where
     fn into_body(self) -> Self::Body {
         self
     }
-}
-
-#[inline]
-pub async fn take_full<B>(body: B) -> Result<B::Chunk, Error>
-where
-    B: IntoBody,
-{
-    let mut body = body.into_body();
-    debug_assert!(
-        matches!(body.size_hint(), Hint::Full { .. }),
-        "body size must be full",
-    );
-
-    debug_assert!(!body.is_end(), "the body must have only one chunk");
-
-    let chunk = body.chunk().await.expect("full body should have content");
-    debug_assert!(body.is_end(), "the body must have only one chunk");
-
-    chunk
 }
 
 pub trait PollBody {
@@ -318,6 +371,7 @@ where
         self.as_ref().is_end()
     }
 
+    #[inline]
     fn size_hint(&self) -> Hint {
         self.as_ref().size_hint()
     }
@@ -326,7 +380,39 @@ where
 pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 
-pub trait BodyExt: Body + Sized {
+pub trait BodyExt: IntoBody + Sized {
+    #[expect(async_fn_in_trait)]
+    #[inline]
+    async fn take_full(self) -> Result<Option<Self::Chunk>, Error> {
+        let mut body = self.into_body();
+        let size = body.size_hint();
+
+        assert!(
+            matches!(size, Hint::Full { .. }),
+            "the body size must be full",
+        );
+
+        let chunk = body.chunk().await;
+
+        match &chunk {
+            Some(Ok(chunk)) => {
+                debug_assert!(
+                    !size.is_end() || !chunk.has_remaining(),
+                    "an empty body shouldn't have remaining chunks",
+                );
+            }
+            Some(Err(_)) => {}
+            None => debug_assert!(size.is_end(), "the body must be empty"),
+        }
+
+        debug_assert!(
+            body.size_hint().is_end(),
+            "the body must ends after the chunk",
+        );
+
+        chunk.transpose()
+    }
+
     #[inline]
     fn reader(self) -> impl AsyncRead {
         Reader {
@@ -337,7 +423,7 @@ pub trait BodyExt: Body + Sized {
 
     #[inline]
     fn into_poll_body(self) -> impl PollBody<Chunk = Self::Chunk> {
-        unfold(self, |mut body| async {
+        unfold(self.into_body(), |mut body| async {
             match body.chunk().await {
                 Some(res) => Step::Next { body, res },
                 None => Step::End(body),
@@ -354,7 +440,7 @@ pub trait BodyExt: Body + Sized {
     }
 }
 
-impl<B> BodyExt for B where B: Body {}
+impl<B> BodyExt for B where B: IntoBody {}
 
 #[cfg(feature = "rtn")]
 include!("body_ext_rtn.rs");
@@ -436,6 +522,7 @@ where
             .is_end()
     }
 
+    #[inline]
     fn size_hint(&self) -> Hint {
         self.body
             .as_ref()
@@ -546,31 +633,47 @@ mod tests {
     #[test]
     fn slice() {
         let src = "hi";
-        let actual = future::block_on(take_full(src.as_bytes()));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(src.as_bytes().take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 
     #[test]
     fn str() {
         let src = "hi";
-        let actual = future::block_on(take_full(src));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(src.take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 
     #[test]
     fn full() {
         let src = "hi";
         let full = Full::new(src.as_bytes());
-        let actual = future::block_on(take_full(full));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(full.take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 
     #[test]
     fn deferred() {
         let src = "hi";
         let deferred = Deferred::new(future::ready(Ok(src.as_bytes())));
-        let actual = future::block_on(take_full(deferred));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(deferred.take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 
     #[test]
@@ -628,8 +731,12 @@ mod tests {
         let src = "hi";
         let body = Full::new(src.as_bytes());
         let poll_body = pin::pin!(body.into_poll_body());
-        let actual = future::block_on(take_full(poll_body));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(poll_body.take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 
     #[test]
@@ -637,8 +744,12 @@ mod tests {
         let src = "hi";
         let body = Full::new(src.as_bytes());
         let boxed_body = body.boxed_local();
-        let actual = future::block_on(take_full(boxed_body));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(boxed_body.take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 
     #[cfg(feature = "rtn")]
@@ -647,7 +758,11 @@ mod tests {
         let src = "hi";
         let body = Full::new(src.as_bytes());
         let boxed_body = body.boxed();
-        let actual = future::block_on(take_full(boxed_body));
-        assert_eq!(actual.ok(), Some(src.as_bytes()));
+        let actual = future::block_on(boxed_body.take_full()).expect("take full body");
+
+        assert_eq!(
+            actual.as_ref().map(Buf::chunk).unwrap_or_default(),
+            src.as_bytes(),
+        );
     }
 }

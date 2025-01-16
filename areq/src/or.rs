@@ -3,7 +3,7 @@ use {
         proto::{Client, Error, Handshake, Request, Response, Session},
         tls::Negotiate,
     },
-    areq_body::{Body, Hint, IntoBody, Kind},
+    areq_body::{prelude::*, Kind},
     futures_lite::prelude::*,
     std::{
         io,

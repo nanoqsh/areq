@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::IntoBody,
+        body::prelude::*,
         proto::{Client, Error, Handshake, Request, Response, Session},
         tls::Negotiate,
     },

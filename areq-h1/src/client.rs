@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{self, Body, Hint, IntoBody, Kind},
+        body::{prelude::*, Hint, Kind},
         error::Error,
         handler::{Handler, Parser, ReadStrategy},
         headers::{self, ContentLen},
@@ -90,9 +90,9 @@ where
 
             match body.size_hint() {
                 Hint::Full { .. } => {
-                    let full = body::take_full(body).await?;
+                    let full = body.take_full().await?;
 
-                    let chunk = full.chunk();
+                    let chunk = full.as_ref().map(Buf::chunk).unwrap_or_default();
                     let chunk_len = HeaderValue::from(chunk.len());
 
                     head.headers_mut().insert(header::CONTENT_LENGTH, chunk_len);
