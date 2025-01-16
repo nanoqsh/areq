@@ -15,14 +15,35 @@ pub trait Body {
 
     #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
+
+    #[deprecated]
     fn kind(&self) -> Kind;
+
+    #[deprecated]
     fn is_end(&self) -> bool;
+
+    fn size_hint(&self) -> Hint;
 }
 
 #[derive(Clone, Copy)]
 pub enum Kind {
     Full,
     Chunked,
+}
+
+#[derive(Clone, Copy)]
+pub enum Hint {
+    Full { len: Option<u64> },
+    Chunked { end: bool },
+}
+
+impl Hint {
+    pub fn is_end(self) -> bool {
+        match self {
+            Self::Full { len } => len == Some(0),
+            Self::Chunked { end } => end,
+        }
+    }
 }
 
 pub enum Void {}
@@ -63,6 +84,10 @@ where
     #[inline]
     fn is_end(&self) -> bool {
         (**self).is_end()
+    }
+
+    fn size_hint(&self) -> Hint {
+        (**self).size_hint()
     }
 }
 
@@ -125,6 +150,17 @@ where
     fn is_end(&self) -> bool {
         self.0.is_none()
     }
+
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: Some(
+                self.0
+                    .as_ref()
+                    .map(|b| b.remaining() as u64)
+                    .unwrap_or_default(),
+            ),
+        }
+    }
 }
 
 pub struct Deferred<F>(Option<F>);
@@ -168,6 +204,12 @@ where
     fn is_end(&self) -> bool {
         self.0.is_none()
     }
+
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: if self.0.is_none() { Some(0) } else { None },
+        }
+    }
 }
 
 pub struct Chunked<S>(pub S);
@@ -193,6 +235,13 @@ where
     fn is_end(&self) -> bool {
         let (_, upper_bound) = self.0.size_hint();
         upper_bound == Some(0)
+    }
+
+    fn size_hint(&self) -> Hint {
+        let (_, upper_bound) = self.0.size_hint();
+        Hint::Chunked {
+            end: upper_bound == Some(0),
+        }
     }
 }
 
@@ -222,7 +271,11 @@ where
     B: IntoBody,
 {
     let mut body = body.into_body();
-    debug_assert!(matches!(body.kind(), Kind::Full), "body type must be full");
+    debug_assert!(
+        matches!(body.size_hint(), Hint::Full { .. }),
+        "body size must be full",
+    );
+
     debug_assert!(!body.is_end(), "the body must have only one chunk");
 
     let chunk = body.chunk().await.expect("full body should have content");
@@ -241,6 +294,7 @@ pub trait PollBody {
 
     fn kind(&self) -> Kind;
     fn is_end(&self) -> bool;
+    fn size_hint(&self) -> Hint;
 }
 
 impl<P> Body for Pin<P>
@@ -263,17 +317,18 @@ where
     fn is_end(&self) -> bool {
         self.as_ref().is_end()
     }
+
+    fn size_hint(&self) -> Hint {
+        self.as_ref().size_hint()
+    }
 }
 
 pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 
-pub trait BodyExt: Body {
+pub trait BodyExt: Body + Sized {
     #[inline]
-    fn reader(self) -> impl AsyncRead
-    where
-        Self: Sized,
-    {
+    fn reader(self) -> impl AsyncRead {
         Reader {
             body: self.into_poll_body(),
             state: State::Start,
@@ -281,20 +336,19 @@ pub trait BodyExt: Body {
     }
 
     #[inline]
-    fn into_poll_body(self) -> impl PollBody<Chunk = Self::Chunk>
-    where
-        Self: Sized,
-    {
+    fn into_poll_body(self) -> impl PollBody<Chunk = Self::Chunk> {
         unfold(self, |mut body| async {
-            let res = body.chunk().await?;
-            Some((body, res))
+            match body.chunk().await {
+                Some(res) => Step::Next { body, res },
+                None => Step::End(body),
+            }
         })
     }
 
     #[inline]
     fn boxed_local<'body>(self) -> BoxedLocal<'body, Self::Chunk>
     where
-        Self: Sized + 'body,
+        Self: 'body,
     {
         Box::pin(self.into_poll_body())
     }
@@ -305,12 +359,17 @@ impl<B> BodyExt for B where B: Body {}
 #[cfg(feature = "rtn")]
 include!("body_ext_rtn.rs");
 
+enum Step<B, C> {
+    Next { body: B, res: Result<C, Error> },
+    End(B),
+}
+
 #[inline]
 fn unfold<B, F, U>(body: B, f: F) -> Unfold<B, F, U>
 where
     B: Body,
     F: FnMut(B) -> U,
-    U: Future<Output = Option<(B, Result<B::Chunk, Error>)>>,
+    U: Future<Output = Step<B, B::Chunk>>,
 {
     Unfold {
         body: Some(body),
@@ -332,7 +391,7 @@ impl<B, F, U> PollBody for Unfold<B, F, U>
 where
     B: Body,
     F: FnMut(B) -> U,
-    U: Future<Output = Option<(B, Result<B::Chunk, Error>)>>,
+    U: Future<Output = Step<B, B::Chunk>>,
 {
     type Chunk = B::Chunk;
 
@@ -346,19 +405,15 @@ where
             me.fu.set(Some((me.f)(body)));
         }
 
-        let fu = me
-            .fu
-            .as_mut()
-            .as_pin_mut()
-            .expect("poll after `None` was returned");
+        let fu = me.fu.as_pin_mut().expect("future should always be here");
 
         match fu.poll(cx) {
-            Poll::Ready(Some((body, res))) => {
+            Poll::Ready(Step::Next { body, res }) => {
                 *me.body = Some(body);
                 Poll::Ready(Some(res))
             }
-            Poll::Ready(None) => {
-                me.fu.set(None);
+            Poll::Ready(Step::End(body)) => {
+                *me.body = Some(body);
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
@@ -379,6 +434,13 @@ where
             .as_ref()
             .expect("called before the chunk retrieval was completed")
             .is_end()
+    }
+
+    fn size_hint(&self) -> Hint {
+        self.body
+            .as_ref()
+            .expect("called before the chunk retrieval was completed")
+            .size_hint()
     }
 }
 

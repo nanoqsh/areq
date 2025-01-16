@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{self, Body, IntoBody, Kind},
+        body::{self, Body, Hint, IntoBody, Kind},
         io::Io,
         proto::Client,
         tls::Negotiate,
@@ -123,32 +123,34 @@ where
         let header_req = http::Request::from_parts(head, ());
 
         let mut body = body.into_body();
-        let empty = body.is_end();
+        let size = body.size_hint();
+        let end = size.is_end();
 
         self.ready().await?;
-        let (resfu, mut send_body) = self.send.send_request(header_req, empty)?;
+        let (resfu, mut send_body) = self.send.send_request(header_req, end)?;
 
-        match body.kind() {
-            Kind::Full => {
-                debug_assert!(!empty, "a full body must not be empty");
-                let full = body::take_full(body).await?;
-                send_body.send_data(Flow::Next(full), true)?;
+        'body: {
+            if end {
+                break 'body;
             }
-            Kind::Chunked => 'stream: {
-                if empty {
-                    break 'stream;
+
+            match size {
+                Hint::Full { .. } => {
+                    let full = body::take_full(body).await?;
+                    send_body.send_data(Flow::Next(full), true)?;
                 }
+                Hint::Chunked { .. } => {
+                    while let Some(chunk) = body.chunk().await {
+                        let end = body.size_hint().is_end();
+                        send_body.send_data(Flow::Next(chunk?), end)?;
 
-                while let Some(chunk) = body.chunk().await {
-                    let end = body.is_end();
-                    send_body.send_data(Flow::Next(chunk?), end)?;
-
-                    if end {
-                        break 'stream;
+                        if end {
+                            break 'body;
+                        }
                     }
-                }
 
-                send_body.send_data(Flow::End, true)?;
+                    send_body.send_data(Flow::End, true)?;
+                }
             }
         }
 
@@ -204,6 +206,12 @@ impl Body for BodyH2 {
 
     fn is_end(&self) -> bool {
         self.0.is_end_stream()
+    }
+
+    fn size_hint(&self) -> Hint {
+        Hint::Chunked {
+            end: self.0.is_end_stream(),
+        }
     }
 }
 

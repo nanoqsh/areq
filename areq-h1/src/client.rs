@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{self, Body, IntoBody, Kind},
+        body::{self, Body, Hint, IntoBody, Kind},
         error::Error,
         handler::{Handler, Parser, ReadStrategy},
         headers::{self, ContentLen},
@@ -88,8 +88,8 @@ where
             let mut head = Request::from_parts(parts, ());
             let mut body = body.into_body();
 
-            match body.kind() {
-                Kind::Full => {
+            match body.size_hint() {
+                Hint::Full { .. } => {
                     let full = body::take_full(body).await?;
 
                     let chunk = full.chunk();
@@ -101,7 +101,7 @@ where
                     conn.io.write_header(&head).await?;
                     conn.io.write_body(chunk).await?;
                 }
-                Kind::Chunked => {
+                Hint::Chunked { .. } => {
                     head.headers_mut().remove(header::CONTENT_LENGTH);
                     headers::insert_chunked_encoding(head.headers_mut());
 
@@ -238,6 +238,10 @@ impl Body for FetchBody {
     #[inline]
     fn is_end(&self) -> bool {
         self.end
+    }
+
+    fn size_hint(&self) -> Hint {
+        Hint::Chunked { end: self.end }
     }
 }
 

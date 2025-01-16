@@ -3,7 +3,7 @@ use {
         proto::{Client, Error, Handshake, Request, Response, Session},
         tls::Negotiate,
     },
-    areq_body::{Body, IntoBody, Kind},
+    areq_body::{Body, Hint, IntoBody, Kind},
     futures_lite::prelude::*,
     std::{
         io,
@@ -150,6 +150,13 @@ where
         match self {
             Self::Lhs { l } => l.is_end(),
             Self::Rhs { r } => r.is_end(),
+        }
+    }
+
+    fn size_hint(&self) -> Hint {
+        match self {
+            Self::Lhs { l } => l.size_hint(),
+            Self::Rhs { r } => r.size_hint(),
         }
     }
 }

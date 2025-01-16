@@ -1,8 +1,8 @@
-pub trait BodyExtRtn: Body {
+pub trait BodyExtRtn: Body + Sized {
     #[inline]
     fn boxed<'body>(self) -> Boxed<'body, Self::Chunk>
     where
-        Self: Body<chunk(..): Send> + Send + Sized + 'body,
+        Self: Body<chunk(..): Send> + Send + 'body,
     {
         Box::pin(self.into_poll_body())
     }
