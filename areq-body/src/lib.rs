@@ -10,7 +10,7 @@ pub mod prelude {
 }
 
 pub use crate::body::{
-    Body, BodyExt, Boxed, BoxedLocal, Chunked, Deferred, Full, Hint, IntoBody, Kind, PollBody, Void,
+    Body, BodyExt, Boxed, BoxedLocal, Chunked, Deferred, Full, Hint, IntoBody, PollBody, Void,
 };
 
 #[cfg(feature = "rtn")]

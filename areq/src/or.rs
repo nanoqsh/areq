@@ -3,7 +3,7 @@ use {
         proto::{Client, Error, Handshake, Request, Response, Session},
         tls::Negotiate,
     },
-    areq_body::{prelude::*, Kind},
+    areq_body::prelude::*,
     futures_lite::prelude::*,
     std::{
         io,
@@ -136,20 +136,6 @@ where
         match self {
             Self::Lhs { l } => l.chunk().await,
             Self::Rhs { r } => r.chunk().await,
-        }
-    }
-
-    fn kind(&self) -> Kind {
-        match self {
-            Self::Lhs { l } => l.kind(),
-            Self::Rhs { r } => r.kind(),
-        }
-    }
-
-    fn is_end(&self) -> bool {
-        match self {
-            Self::Lhs { l } => l.is_end(),
-            Self::Rhs { r } => r.is_end(),
         }
     }
 

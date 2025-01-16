@@ -16,20 +16,7 @@ pub trait Body {
 
     #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
-
-    #[deprecated]
-    fn kind(&self) -> Kind;
-
-    #[deprecated]
-    fn is_end(&self) -> bool;
-
     fn size_hint(&self) -> Hint;
-}
-
-#[derive(Clone, Copy)]
-pub enum Kind {
-    Full,
-    Chunked,
 }
 
 #[derive(Clone, Copy)]
@@ -52,7 +39,7 @@ impl Hint {
     }
 
     #[inline]
-    pub fn is_end(self) -> bool {
+    pub fn end(self) -> bool {
         match self {
             Self::Full { len } => len == Some(0),
             Self::Chunked { end } => end,
@@ -90,16 +77,6 @@ where
         (**self).chunk().await
     }
 
-    #[inline]
-    fn kind(&self) -> Kind {
-        (**self).kind()
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        (**self).is_end()
-    }
-
     fn size_hint(&self) -> Hint {
         (**self).size_hint()
     }
@@ -111,16 +88,6 @@ impl Body for () {
     #[inline]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         None
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Full
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        true
     }
 
     #[inline]
@@ -142,16 +109,6 @@ impl<'slice> Body for &'slice [u8] {
     }
 
     #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Full
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.is_empty()
-    }
-
-    #[inline]
     fn size_hint(&self) -> Hint {
         Hint::Full {
             len: Some(self.len() as u64),
@@ -170,16 +127,6 @@ impl<'str> Body for &'str str {
             let s = mem::take(self);
             Some(Ok(s.as_bytes()))
         }
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Full
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.is_empty()
     }
 
     #[inline]
@@ -208,16 +155,6 @@ where
     #[inline]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         self.0.take().map(Ok)
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Full
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.0.is_none()
     }
 
     #[inline]
@@ -266,16 +203,6 @@ where
     }
 
     #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Full
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.0.is_none()
-    }
-
-    #[inline]
     fn size_hint(&self) -> Hint {
         Hint::Full {
             len: if self.0.is_none() { Some(0) } else { None },
@@ -295,17 +222,6 @@ where
     #[inline]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         self.0.next().await
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Chunked
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        let (_, upper_bound) = self.0.size_hint();
-        upper_bound == Some(0)
     }
 
     #[inline]
@@ -345,8 +261,6 @@ pub trait PollBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Self::Chunk, Error>>>;
 
-    fn kind(&self) -> Kind;
-    fn is_end(&self) -> bool;
     fn size_hint(&self) -> Hint;
 }
 
@@ -359,16 +273,6 @@ where
     #[inline]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
         future::poll_fn(|cx| self.as_mut().poll_chunk(cx)).await
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        self.as_ref().kind()
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.as_ref().is_end()
     }
 
     #[inline]
@@ -397,18 +301,15 @@ pub trait BodyExt: IntoBody + Sized {
         match &chunk {
             Some(Ok(chunk)) => {
                 debug_assert!(
-                    !size.is_end() || !chunk.has_remaining(),
+                    !size.end() || !chunk.has_remaining(),
                     "an empty body shouldn't have remaining chunks",
                 );
             }
             Some(Err(_)) => {}
-            None => debug_assert!(size.is_end(), "the body must be empty"),
+            None => debug_assert!(size.end(), "the body must be empty"),
         }
 
-        debug_assert!(
-            body.size_hint().is_end(),
-            "the body must ends after the chunk",
-        );
+        debug_assert!(body.size_hint().end(), "the body must ends after the chunk",);
 
         chunk.transpose()
     }
@@ -504,22 +405,6 @@ where
             }
             Poll::Pending => Poll::Pending,
         }
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        self.body
-            .as_ref()
-            .expect("called before the chunk retrieval was completed")
-            .kind()
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.body
-            .as_ref()
-            .expect("called before the chunk retrieval was completed")
-            .is_end()
     }
 
     #[inline]

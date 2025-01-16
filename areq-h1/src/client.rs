@@ -1,6 +1,6 @@
 use {
     crate::{
-        body::{prelude::*, Hint, Kind},
+        body::prelude::*,
         error::Error,
         handler::{Handler, Parser, ReadStrategy},
         headers::{self, ContentLen},
@@ -228,16 +228,6 @@ impl Body for FetchBody {
             }
             Err(e) => Some(Err(e.into())),
         }
-    }
-
-    #[inline]
-    fn kind(&self) -> Kind {
-        Kind::Chunked
-    }
-
-    #[inline]
-    fn is_end(&self) -> bool {
-        self.end
     }
 
     fn size_hint(&self) -> Hint {

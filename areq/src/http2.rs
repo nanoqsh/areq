@@ -1,10 +1,7 @@
 use {
     crate::{
-        body::{prelude::*, Kind},
-        io::Io,
-        proto::Client,
-        tls::Negotiate,
-        Error, Handshake, Request, Response, Session,
+        body::prelude::*, io::Io, proto::Client, tls::Negotiate, Error, Handshake, Request,
+        Response, Session,
     },
     bytes::{Buf, Bytes},
     futures_lite::prelude::*,
@@ -124,7 +121,7 @@ where
 
         let mut body = body.into_body();
         let size = body.size_hint();
-        let end = size.is_end();
+        let end = size.end();
 
         self.ready().await?;
         let (resfu, mut send_body) = self.send.send_request(header_req, end)?;
@@ -136,16 +133,12 @@ where
 
             match size {
                 Hint::Full { .. } => {
-                    let flow = match body.take_full().await? {
-                        Some(chunk) => Flow::Next(chunk),
-                        None => Flow::End,
-                    };
-
-                    send_body.send_data(flow, true)?;
+                    let chunk = body.take_full().await?;
+                    send_body.send_data(Flow::from_option(chunk), true)?;
                 }
                 Hint::Chunked { .. } => {
                     while let Some(chunk) = body.chunk().await {
-                        let end = body.size_hint().is_end();
+                        let end = body.size_hint().end();
                         send_body.send_data(Flow::Next(chunk?), end)?;
 
                         if end {
@@ -166,6 +159,15 @@ where
 enum Flow<B> {
     Next(B),
     End,
+}
+
+impl<B> Flow<B> {
+    fn from_option(opt: Option<B>) -> Self {
+        match opt {
+            Some(buf) => Self::Next(buf),
+            None => Self::End,
+        }
+    }
 }
 
 impl<B> Buf for Flow<B>
@@ -202,14 +204,6 @@ impl Body for BodyH2 {
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, io::Error>> {
         let res = self.0.data().await?;
         Some(res.map_err(into_io_error))
-    }
-
-    fn kind(&self) -> Kind {
-        Kind::Chunked
-    }
-
-    fn is_end(&self) -> bool {
-        self.0.is_end_stream()
     }
 
     fn size_hint(&self) -> Hint {
