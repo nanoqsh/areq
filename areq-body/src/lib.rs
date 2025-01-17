@@ -14,4 +14,4 @@ pub use crate::body::{
 };
 
 #[cfg(feature = "rtn")]
-pub use crate::body::BodyExtRtn;
+pub use crate::body::{BodyExtRtn, SendBody};

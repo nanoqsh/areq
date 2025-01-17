@@ -105,7 +105,7 @@ where
         println!();
 
         // print response body
-        let lines = BufReader::new(res.body().reader()).lines();
+        let lines = BufReader::new(res.body().read()).lines();
         let mut stdout = io::stdout();
 
         let mut stream = pin::pin!(lines);

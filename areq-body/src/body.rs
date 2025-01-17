@@ -1,5 +1,5 @@
 use {
-    bytes::Buf,
+    bytes::{Buf, Bytes, BytesMut},
     futures_lite::prelude::*,
     std::{
         future::{self, IntoFuture},
@@ -233,7 +233,7 @@ where
     }
 }
 
-pub trait IntoBody {
+pub trait IntoBody: Sized {
     type Chunk: Buf;
     type Body: Body<Chunk = Self::Chunk>;
 
@@ -284,7 +284,7 @@ where
 pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 
-pub trait BodyExt: IntoBody + Sized {
+pub trait BodyExt: IntoBody {
     #[expect(async_fn_in_trait)]
     #[inline]
     async fn take_full(self) -> Result<Option<Self::Chunk>, Error> {
@@ -314,11 +314,62 @@ pub trait BodyExt: IntoBody + Sized {
         chunk.transpose()
     }
 
+    #[expect(async_fn_in_trait)]
     #[inline]
-    fn reader(self) -> impl AsyncRead {
+    async fn text(self) -> Result<String, Error>
+    where
+        Self::Chunk: Into<Bytes>,
+    {
+        let bytes = self.bytes().await?;
+        let v = Vec::from(bytes);
+        let s = match String::from_utf8(v) {
+            Ok(s) => s,
+            Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
+        };
+
+        Ok(s)
+    }
+
+    #[expect(async_fn_in_trait)]
+    #[inline]
+    async fn bytes(self) -> Result<Bytes, Error>
+    where
+        Self::Chunk: Into<Bytes>,
+    {
+        let bytes_mut = self.bytes_mut().await?;
+        Ok(bytes_mut.freeze())
+    }
+
+    #[expect(async_fn_in_trait)]
+    #[inline]
+    async fn bytes_mut(self) -> Result<BytesMut, Error>
+    where
+        Self::Chunk: Into<Bytes>,
+    {
+        let mut out = BytesMut::new();
+        let mut body = self.into_body();
+        while let Some(res) = body.chunk().await {
+            match res?.into().try_into_mut() {
+                Ok(bytes_mut) => out.unsplit(bytes_mut),
+                Err(bytes) => out.extend_from_slice(&bytes),
+            }
+        }
+
+        Ok(out)
+    }
+
+    #[inline]
+    fn read(self) -> impl AsyncRead {
         Reader {
             body: self.into_poll_body(),
             state: State::Start,
+        }
+    }
+
+    #[inline]
+    fn stream(self) -> impl Stream<Item = Result<Self::Chunk, Error>> {
+        Streamer {
+            body: self.into_poll_body(),
         }
     }
 
@@ -507,6 +558,24 @@ where
     }
 }
 
+pin_project_lite::pin_project! {
+    struct Streamer<B> {
+       #[pin]
+       body: B,
+   }
+}
+
+impl<B> Stream for Streamer<B>
+where
+    B: PollBody,
+{
+    type Item = Result<B::Chunk, Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.project().body.poll_chunk(cx)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use {
@@ -580,10 +649,34 @@ mod tests {
     }
 
     #[test]
-    fn reader() {
+    fn text() {
+        let src = ["he", "ll", "o"].map(str::as_bytes).map(Ok);
+        let body = Chunked(stream::iter(src));
+        let text = future::block_on(body.text()).expect("read body text");
+        assert_eq!(text, "hello");
+    }
+
+    #[test]
+    fn bytes() {
+        let src = ["he", "ll", "o"].map(str::as_bytes).map(Ok);
+        let body = Chunked(stream::iter(src));
+        let bytes = future::block_on(body.bytes()).expect("read body bytes");
+        assert_eq!(bytes, "hello");
+    }
+
+    #[test]
+    fn bytes_mut() {
+        let src = ["he", "ll", "o"].map(str::as_bytes).map(Ok);
+        let body = Chunked(stream::iter(src));
+        let bytes_mut = future::block_on(body.bytes_mut()).expect("read body bytes");
+        assert_eq!(bytes_mut, "hello");
+    }
+
+    #[test]
+    fn read() {
         let src = ["h", "e", "ll", "o"].map(str::as_bytes).map(Ok);
         let body = Chunked(stream::iter(src));
-        let mut reader = pin::pin!(body.reader());
+        let mut reader = pin::pin!(body.read());
 
         let mut out = String::new();
         let res = future::block_on(reader.read_to_string(&mut out));
@@ -595,7 +688,7 @@ mod tests {
     fn reader_partial() {
         let src = ["h", "e", "ll", "o"].map(str::as_bytes).map(Ok);
         let body = Chunked(stream::iter(src));
-        let mut reader = pin::pin!(body.reader());
+        let mut reader = pin::pin!(body.read());
 
         for (size, part) in [
             (1, b"h\0"),
@@ -606,7 +699,7 @@ mod tests {
         ] {
             let mut buf = [0; 2];
             let n = future::block_on(reader.read(&mut buf)).expect("read body part to the buffer");
-            assert_eq!(n, size, "failed to read {part:?}");
+            assert_eq!(n, size);
             assert_eq!(&buf, part);
         }
     }
