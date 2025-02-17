@@ -2,7 +2,6 @@
 name = "areq-h1"
 description = "An implementation of HTTP/1.1 as part of areq crate"
 documentation = "https://docs.rs/areq-h1"
-readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
