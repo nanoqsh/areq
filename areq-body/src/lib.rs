@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "rtn", feature(return_type_notation))]
 
 mod body;
+pub mod compress;
 
 pub mod prelude {
     pub use crate::{Body, BodyExt as _, Hint, IntoBody};

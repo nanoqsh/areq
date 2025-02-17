@@ -12,6 +12,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+async-compression.workspace = true
 bytes.workspace = true
 futures-lite.workspace = true
 pin-project-lite.workspace = true
