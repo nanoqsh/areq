@@ -1,4 +1,4 @@
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) struct Buffer<B> {
     data: B,
     len: usize,

@@ -1,15 +1,13 @@
 use {
     crate::buffer::Buffer,
-    flate2::{DecompressError, FlushDecompress, Status},
-    std::{fmt, mem, ops::ControlFlow},
+    flate2::{Crc, DecompressError, FlushDecompress, Status},
+    std::{error, fmt, mem, ops::ControlFlow},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Flags(u8);
 
 impl Flags {
-    #[expect(dead_code)]
-    const ASCII: u8 = 1 << 0;
     const CRC: u8 = 1 << 1;
     const EXTRA: u8 = 1 << 2;
     const NAME: u8 = 1 << 3;
@@ -20,6 +18,7 @@ impl Flags {
     }
 }
 
+#[derive(Debug)]
 struct Header {
     flags: Flags,
     mtime: u32,
@@ -42,6 +41,7 @@ impl Header {
     }
 }
 
+#[derive(Debug)]
 struct Footer {
     crc: u32,
     isize: u32,
@@ -51,8 +51,13 @@ impl Footer {
     fn empty() -> Self {
         Self { crc: 0, isize: 0 }
     }
+
+    fn checksum(&self, crc: &Crc) -> bool {
+        self.crc == crc.sum() && self.isize == crc.amount()
+    }
 }
 
+#[derive(Debug)]
 enum State {
     Start(Buffer<[u8; 10]>),
     ExtraLen(Buffer<[u8; 2]>),
@@ -65,11 +70,12 @@ enum State {
 }
 
 impl State {
-    fn header_is_ready(&self) -> bool {
+    fn is_header_ready(&self) -> bool {
         matches!(self, Self::Payload | Self::Footer(_))
     }
 }
 
+#[derive(Debug)]
 struct Parser {
     state: State,
     header: Header,
@@ -89,15 +95,16 @@ impl Parser {
         }
     }
 
+    #[expect(dead_code)]
     fn header(&self) -> Option<&Header> {
-        if self.state.header_is_ready() {
+        if self.state.is_header_ready() {
             Some(&self.header)
         } else {
             None
         }
     }
 
-    fn parse<D>(&mut self, input: &mut &[u8], mut deco: D) -> Out
+    fn parse<D>(&mut self, input: &mut &[u8], mut deco: D) -> Parsed
     where
         D: FnMut(&mut &[u8]) -> ControlFlow<()>,
     {
@@ -105,11 +112,11 @@ impl Parser {
             match &mut self.state {
                 State::Start(buf) => {
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Running;
+                        return Parsed::Done;
                     };
 
                     let Some((flags, mtime)) = parse_start(bytes) else {
-                        return Out::InvalidHeader;
+                        return Parsed::InvalidHeader;
                     };
 
                     self.header.flags = flags;
@@ -123,7 +130,7 @@ impl Parser {
                     }
 
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Running;
+                        return Parsed::Done;
                     };
 
                     let len = u16::from_le_bytes(bytes);
@@ -131,7 +138,7 @@ impl Parser {
                 }
                 State::Extra(buf) => {
                     let Some(extra) = buf.read_from(input) else {
-                        return Out::Running;
+                        return Parsed::Done;
                     };
 
                     mem::swap(&mut self.header.extra, extra);
@@ -146,7 +153,7 @@ impl Parser {
                     let (read, parse) = read_while(0, input);
                     out.extend_from_slice(read);
                     if parse {
-                        return Out::Running;
+                        return Parsed::Done;
                     }
 
                     mem::swap(&mut self.header.name, out);
@@ -161,7 +168,7 @@ impl Parser {
                     let (read, parse) = read_while(0, input);
                     out.extend_from_slice(read);
                     if parse {
-                        return Out::Running;
+                        return Parsed::Done;
                     }
 
                     mem::swap(&mut self.header.comment, out);
@@ -174,32 +181,32 @@ impl Parser {
                     }
 
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Running;
+                        return Parsed::Done;
                     };
 
                     self.header.crc = u16::from_le_bytes(bytes);
                     self.state = State::Payload;
                 }
                 State::Payload => match deco(input) {
-                    ControlFlow::Continue(()) => return Out::Running,
+                    ControlFlow::Continue(()) => return Parsed::Done,
                     ControlFlow::Break(()) => self.state = State::Footer(Buffer::default()),
                 },
                 State::Footer(buf) => {
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Running;
+                        return Parsed::Done;
                     };
 
                     self.footer = parse_footer(bytes);
-                    return Out::Done;
+                    return Parsed::End;
                 }
             }
         }
     }
 }
 
-enum Out {
-    Running,
+enum Parsed {
     Done,
+    End,
     InvalidHeader,
 }
 
@@ -238,30 +245,18 @@ fn read_while<'input>(u: u8, input: &mut &'input [u8]) -> (&'input [u8], bool) {
     }
 }
 
-struct Decoder {
+#[derive(Debug)]
+pub struct Decoder {
     deco: flate2::Decompress,
     parser: Parser,
-    end: bool,
+    crc: Crc,
 }
 
 impl Decoder {
-    fn new() -> Self {
-        Self {
-            deco: flate2::Decompress::new(false),
-            parser: Parser::new(),
-            end: false,
-        }
-    }
-
-    fn end(&self) -> bool {
-        self.end
-    }
-
-    fn decode(&mut self, input: &mut &[u8], output: &mut [u8]) -> Result<usize, Error> {
-        debug_assert!(!self.end, "do not call this after end");
-
+    pub fn decode(&mut self, input: &mut &[u8], output: &mut [u8]) -> Decoded {
         let mut written = 0;
-        let mut err = Ok(());
+        let mut need_more_input = false;
+        let mut err = None;
 
         let deco = |input: &mut &[u8]| {
             let input_size = self.deco.total_in();
@@ -273,35 +268,61 @@ impl Decoder {
             *input = &input[read_input as usize..];
 
             written = (self.deco.total_out() - output_size) as usize;
+            self.crc.update(&output[..written]);
 
             match res {
                 Ok(Status::Ok) => ControlFlow::Continue(()),
                 Ok(Status::BufError) => {
-                    todo!("ask more input");
+                    need_more_input = true;
                     ControlFlow::Continue(())
                 }
                 Ok(Status::StreamEnd) => ControlFlow::Break(()),
                 Err(e) => {
-                    err = Err(Error::Decompress(e));
+                    err = Some(Error::Decompress(e));
                     ControlFlow::Continue(())
                 }
             }
         };
 
         match self.parser.parse(input, deco) {
-            Out::Running => err.map(|_| written),
-            Out::Done => {
-                self.end = true;
-                Ok(written)
+            Parsed::Done if need_more_input => Decoded::NeedMoreInput,
+            Parsed::Done => err.map_or(
+                Decoded::Done {
+                    written,
+                    end: false,
+                },
+                Decoded::Fail,
+            ),
+            Parsed::End if self.parser.footer.checksum(&self.crc) => {
+                Decoded::Done { written, end: true }
             }
-            Out::InvalidHeader => Err(Error::InvalidHeader),
+            Parsed::End => Decoded::Fail(Error::ChecksumMismatch),
+            Parsed::InvalidHeader => Decoded::Fail(Error::InvalidHeader),
+        }
+    }
+}
+
+impl Default for Decoder {
+    fn default() -> Self {
+        Self {
+            deco: flate2::Decompress::new(false),
+            parser: Parser::new(),
+            crc: Crc::default(),
         }
     }
 }
 
 #[derive(Debug)]
-enum Error {
+pub enum Decoded {
+    Done { written: usize, end: bool },
+    NeedMoreInput,
+    Fail(Error),
+}
+
+#[derive(Debug)]
+pub enum Error {
     InvalidHeader,
+    ChecksumMismatch,
     Decompress(DecompressError),
 }
 
@@ -309,7 +330,17 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidHeader => write!(f, "invalid header"),
+            Self::ChecksumMismatch => write!(f, "the checksum doesn't match"),
             Self::Decompress(e) => write!(f, "decompress error: {e}"),
+        }
+    }
+}
+
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            Self::InvalidHeader | Self::ChecksumMismatch => None,
+            Self::Decompress(e) => Some(e),
         }
     }
 }
@@ -319,14 +350,14 @@ mod tests {
     use super::*;
 
     fn decode(expected: &[u8], mut input: &[u8]) {
-        let mut d = Decoder::new();
+        let mut d = Decoder::default();
         let mut output = vec![0; expected.len()];
-        let n = d
-            .decode(&mut input, output.as_mut_slice())
-            .expect("decode input");
+        let Decoded::Done { written, end } = d.decode(&mut input, output.as_mut_slice()) else {
+            panic!("failed to decode input");
+        };
 
-        assert_eq!(n, expected.len());
-        assert!(d.end());
+        assert_eq!(written, expected.len());
+        assert!(end);
         assert!(input.is_empty());
         assert_eq!(output, expected);
     }
@@ -348,17 +379,24 @@ mod tests {
     }
 
     fn decode_partial(expected: &[u8], input: &[u8]) {
-        let mut d = Decoder::new();
+        let mut d = Decoder::default();
         let mut output = vec![0; expected.len()];
         let mut p = 0;
+        let mut ended = false;
 
         for mut part in input.chunks(4) {
-            p += d.decode(&mut part, &mut output[p..]).expect("decode input");
+            let Decoded::Done { written, end } = d.decode(&mut part, &mut output[p..]) else {
+                panic!("failed to decode input");
+            };
+
+            p += written;
+            ended = end || ended;
+
             assert!(part.is_empty());
         }
 
         assert_eq!(p, expected.len());
-        assert!(d.end());
+        assert!(ended);
         assert_eq!(output, expected);
     }
 
@@ -376,5 +414,36 @@ mod tests {
             include_bytes!("../test/lorem.txt"),
             include_bytes!("../test/lorem.gzip"),
         );
+    }
+
+    #[test]
+    fn decode_half_input() {
+        let expected = include_bytes!("../test/hello.txt");
+        let input = include_bytes!("../test/hello.gzip");
+        let mut input = &input[..input.len() / 2];
+
+        let mut d = Decoder::default();
+        let mut output = vec![0; expected.len()];
+        let decoded = d.decode(&mut input, output.as_mut_slice());
+        assert!(matches!(decoded, Decoded::Done { end: false, .. }));
+
+        let decoded = d.decode(&mut input, output.as_mut_slice());
+        assert!(matches!(decoded, Decoded::NeedMoreInput));
+    }
+
+    #[test]
+    fn decode_checksum_mismatch() {
+        let expected = include_bytes!("../test/hello.txt");
+        let mut input = const {
+            let mut input = *include_bytes!("../test/hello.gzip");
+            input[input.len() - 5] = 0;
+            input
+        }
+        .as_slice();
+
+        let mut d = Decoder::default();
+        let mut output = vec![0; expected.len()];
+        let decoded = d.decode(&mut input, output.as_mut_slice());
+        assert!(matches!(decoded, Decoded::Fail(Error::ChecksumMismatch)));
     }
 }
