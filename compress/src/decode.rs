@@ -1,7 +1,7 @@
 use {
     crate::buffer::Buffer,
     flate2::{DecompressError, FlushDecompress, Status},
-    std::mem,
+    std::{fmt, mem, ops::ControlFlow},
 };
 
 #[derive(Clone, Copy)]
@@ -99,7 +99,7 @@ impl Parser {
 
     fn parse<D>(&mut self, input: &mut &[u8], mut deco: D) -> Out
     where
-        D: FnMut(&mut &[u8]) -> bool,
+        D: FnMut(&mut &[u8]) -> ControlFlow<()>,
     {
         loop {
             match &mut self.state {
@@ -180,13 +180,10 @@ impl Parser {
                     self.header.crc = u16::from_le_bytes(bytes);
                     self.state = State::Payload;
                 }
-                State::Payload => {
-                    if deco(input) {
-                        return Out::Running;
-                    }
-
-                    self.state = State::Footer(Buffer::default());
-                }
+                State::Payload => match deco(input) {
+                    ControlFlow::Continue(()) => return Out::Running,
+                    ControlFlow::Break(()) => self.state = State::Footer(Buffer::default()),
+                },
                 State::Footer(buf) => {
                     let Some(&mut bytes) = buf.read_from(input) else {
                         return Out::Running;
@@ -244,6 +241,7 @@ fn read_while<'input>(u: u8, input: &mut &'input [u8]) -> (&'input [u8], bool) {
 struct Decoder {
     deco: flate2::Decompress,
     parser: Parser,
+    end: bool,
 }
 
 impl Decoder {
@@ -251,17 +249,18 @@ impl Decoder {
         Self {
             deco: flate2::Decompress::new(false),
             parser: Parser::new(),
+            end: false,
         }
     }
 
-    fn decode(&mut self, input: &mut &[u8], output: &mut [u8]) -> Result<Decoded, Error> {
-        debug_assert!(!output.is_empty(), "do not call decode with empty output");
+    fn end(&self) -> bool {
+        self.end
+    }
 
-        let mut decoded = Decoded {
-            read_decompressed: 0,
-            end: false,
-        };
+    fn decode(&mut self, input: &mut &[u8], output: &mut [u8]) -> Result<usize, Error> {
+        debug_assert!(!self.end, "do not call this after end");
 
+        let mut written = 0;
         let mut err = Ok(());
 
         let deco = |input: &mut &[u8]| {
@@ -270,39 +269,34 @@ impl Decoder {
 
             let res = self.deco.decompress(input, output, FlushDecompress::None);
 
-            let consumed = self.deco.total_in() - input_size;
-            *input = &input[consumed as usize..];
+            let read_input = self.deco.total_in() - input_size;
+            *input = &input[read_input as usize..];
 
-            decoded.read_decompressed = (self.deco.total_out() - output_size) as usize;
-            if decoded.read_decompressed == 0 {
-                decoded.end = true;
-            }
+            written = (self.deco.total_out() - output_size) as usize;
 
             match res {
-                Ok(Status::Ok) => true,
-                Ok(Status::BufError) => todo!("ask more input"),
-                Ok(Status::StreamEnd) => {
-                    decoded.end = true;
-                    false
+                Ok(Status::Ok) => ControlFlow::Continue(()),
+                Ok(Status::BufError) => {
+                    todo!("ask more input");
+                    ControlFlow::Continue(())
                 }
+                Ok(Status::StreamEnd) => ControlFlow::Break(()),
                 Err(e) => {
                     err = Err(Error::Decompress(e));
-                    true
+                    ControlFlow::Continue(())
                 }
             }
         };
 
         match self.parser.parse(input, deco) {
-            Out::Running => err.map(|_| decoded),
-            Out::Done => Ok(decoded),
+            Out::Running => err.map(|_| written),
+            Out::Done => {
+                self.end = true;
+                Ok(written)
+            }
             Out::InvalidHeader => Err(Error::InvalidHeader),
         }
     }
-}
-
-struct Decoded {
-    read_decompressed: usize,
-    end: bool,
 }
 
 #[derive(Debug)]
@@ -311,41 +305,76 @@ enum Error {
     Decompress(DecompressError),
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidHeader => write!(f, "invalid header"),
+            Self::Decompress(e) => write!(f, "decompress error: {e}"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn decode() {
+    fn decode(expected: &[u8], mut input: &[u8]) {
         let mut d = Decoder::new();
+        let mut output = vec![0; expected.len()];
+        let n = d
+            .decode(&mut input, output.as_mut_slice())
+            .expect("decode input");
 
-        let mut input = include_bytes!("../test/hello.gzip").as_slice();
-        let mut output = [0; 20];
-        let decoded = d.decode(&mut input, &mut output).expect("decode input");
-
-        let expected = "hello world!";
-        assert_eq!(decoded.read_decompressed, expected.len());
-        assert!(decoded.end);
-        assert!(output.starts_with(expected.as_bytes()));
+        assert_eq!(n, expected.len());
+        assert!(d.end());
+        assert!(input.is_empty());
+        assert_eq!(output, expected);
     }
 
     #[test]
-    fn decode_partial() {
+    fn decode_hello() {
+        decode(
+            include_bytes!("../test/hello.txt"),
+            include_bytes!("../test/hello.gzip"),
+        );
+    }
+
+    #[test]
+    fn decode_lorem() {
+        decode(
+            include_bytes!("../test/lorem.txt"),
+            include_bytes!("../test/lorem.gzip"),
+        );
+    }
+
+    fn decode_partial(expected: &[u8], input: &[u8]) {
         let mut d = Decoder::new();
+        let mut output = vec![0; expected.len()];
+        let mut p = 0;
 
-        let mut output = [0; 20];
-        let mut pos = 0;
-
-        let input = include_bytes!("../test/hello.gzip").as_slice();
         for mut part in input.chunks(4) {
-            let decoded = d
-                .decode(&mut part, &mut output[pos..])
-                .expect("decode input");
-
-            pos += decoded.read_decompressed;
+            p += d.decode(&mut part, &mut output[p..]).expect("decode input");
+            assert!(part.is_empty());
         }
 
-        let expected = "hello world!";
-        assert!(output.starts_with(expected.as_bytes()));
+        assert_eq!(p, expected.len());
+        assert!(d.end());
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn decode_partial_hello() {
+        decode_partial(
+            include_bytes!("../test/hello.txt"),
+            include_bytes!("../test/hello.gzip"),
+        );
+    }
+
+    #[test]
+    fn decode_partial_lorem() {
+        decode_partial(
+            include_bytes!("../test/lorem.txt"),
+            include_bytes!("../test/lorem.gzip"),
+        );
     }
 }
