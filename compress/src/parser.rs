@@ -97,7 +97,7 @@ impl Parser {
         }
     }
 
-    fn step<D>(&mut self, input: &mut &[u8], mut deco: D) -> Out
+    fn parse<D>(&mut self, input: &mut &[u8], mut deco: D) -> Out
     where
         D: FnMut(&mut &[u8]) -> bool,
     {
@@ -105,7 +105,7 @@ impl Parser {
             match &mut self.state {
                 State::Start(buf) => {
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Parse;
+                        return Out::Running;
                     };
 
                     let Some((flags, mtime)) = parse_start(bytes) else {
@@ -123,7 +123,7 @@ impl Parser {
                     }
 
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Parse;
+                        return Out::Running;
                     };
 
                     let len = u16::from_le_bytes(bytes);
@@ -131,7 +131,7 @@ impl Parser {
                 }
                 State::Extra(buf) => {
                     let Some(extra) = buf.read_from(input) else {
-                        return Out::Parse;
+                        return Out::Running;
                     };
 
                     mem::swap(&mut self.header.extra, extra);
@@ -146,7 +146,7 @@ impl Parser {
                     let (read, parse) = read_while(0, input);
                     out.extend_from_slice(read);
                     if parse {
-                        return Out::Parse;
+                        return Out::Running;
                     }
 
                     mem::swap(&mut self.header.name, out);
@@ -161,7 +161,7 @@ impl Parser {
                     let (read, parse) = read_while(0, input);
                     out.extend_from_slice(read);
                     if parse {
-                        return Out::Parse;
+                        return Out::Running;
                     }
 
                     mem::swap(&mut self.header.comment, out);
@@ -174,7 +174,7 @@ impl Parser {
                     }
 
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Parse;
+                        return Out::Running;
                     };
 
                     self.header.crc = u16::from_le_bytes(bytes);
@@ -182,14 +182,14 @@ impl Parser {
                 }
                 State::Payload => {
                     if deco(input) {
-                        return Out::Parse;
+                        return Out::Running;
                     }
 
                     self.state = State::Footer(Buffer::default());
                 }
                 State::Footer(buf) => {
                     let Some(&mut bytes) = buf.read_from(input) else {
-                        return Out::Parse;
+                        return Out::Running;
                     };
 
                     self.footer = parse_footer(bytes);
@@ -201,7 +201,7 @@ impl Parser {
 }
 
 enum Out {
-    Parse,
+    Running,
     Done,
     InvalidHeader,
 }
@@ -247,8 +247,23 @@ struct Decoder {
 }
 
 impl Decoder {
-    fn step(&mut self, mut input: &[u8], output: &mut [u8]) -> Result<bool, Error> {
+    fn new() -> Self {
+        Self {
+            deco: flate2::Decompress::new(false),
+            parser: Parser::new(),
+        }
+    }
+
+    fn decode(&mut self, input: &mut &[u8], output: &mut [u8]) -> Result<Decoded, Error> {
+        debug_assert!(!output.is_empty(), "do not call decode with empty output");
+
+        let mut decoded = Decoded {
+            read_decompressed: 0,
+            end: false,
+        };
+
         let mut err = Ok(());
+
         let deco = |input: &mut &[u8]| {
             let input_size = self.deco.total_in();
             let output_size = self.deco.total_out();
@@ -258,15 +273,18 @@ impl Decoder {
             let consumed = self.deco.total_in() - input_size;
             *input = &input[consumed as usize..];
 
-            let read = self.deco.total_out() - output_size;
-            if read == 0 {
-                // complete to read all decompressed data
+            decoded.read_decompressed = (self.deco.total_out() - output_size) as usize;
+            if decoded.read_decompressed == 0 {
+                decoded.end = true;
             }
 
             match res {
                 Ok(Status::Ok) => true,
                 Ok(Status::BufError) => todo!("ask more input"),
-                Ok(Status::StreamEnd) => false,
+                Ok(Status::StreamEnd) => {
+                    decoded.end = true;
+                    false
+                }
                 Err(e) => {
                     err = Err(Error::Decompress(e));
                     true
@@ -274,14 +292,20 @@ impl Decoder {
             }
         };
 
-        match self.parser.step(&mut input, deco) {
-            Out::Parse => err.map(|_| true),
-            Out::Done => Ok(false),
+        match self.parser.parse(input, deco) {
+            Out::Running => err.map(|_| decoded),
+            Out::Done => Ok(decoded),
             Out::InvalidHeader => Err(Error::InvalidHeader),
         }
     }
 }
 
+struct Decoded {
+    read_decompressed: usize,
+    end: bool,
+}
+
+#[derive(Debug)]
 enum Error {
     InvalidHeader,
     Decompress(DecompressError),
@@ -293,14 +317,35 @@ mod tests {
 
     #[test]
     fn decode() {
-        let mut parser = Parser::new();
+        let mut d = Decoder::new();
 
-        let mut n = 0;
-        let mut deco = |_: &mut &[u8]| {
-            n += 1;
-            n != 3
-        };
+        let mut input = include_bytes!("../test/hello.gzip").as_slice();
+        let mut output = [0; 20];
+        let decoded = d.decode(&mut input, &mut output).expect("decode input");
 
-        _ = parser.step(&mut &[][..], &mut deco);
+        let expected = "hello world!";
+        assert_eq!(decoded.read_decompressed, expected.len());
+        assert!(decoded.end);
+        assert!(output.starts_with(expected.as_bytes()));
+    }
+
+    #[test]
+    fn decode_partial() {
+        let mut d = Decoder::new();
+
+        let mut output = [0; 20];
+        let mut pos = 0;
+
+        let input = include_bytes!("../test/hello.gzip").as_slice();
+        for mut part in input.chunks(4) {
+            let decoded = d
+                .decode(&mut part, &mut output[pos..])
+                .expect("decode input");
+
+            pos += decoded.read_decompressed;
+        }
+
+        let expected = "hello world!";
+        assert!(output.starts_with(expected.as_bytes()));
     }
 }
