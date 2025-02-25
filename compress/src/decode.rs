@@ -1,5 +1,5 @@
 use {
-    crate::buffer::Buffer,
+    crate::buffer::{Buffer, Maybe},
     flate2::{Crc, DecompressError, FlushDecompress, Status},
     std::{error, fmt, mem, ops::ControlFlow},
 };
@@ -61,7 +61,7 @@ impl Footer {
 enum State {
     Start(Buffer<[u8; 10]>),
     ExtraLen(Buffer<[u8; 2]>),
-    Extra(Buffer<Box<[u8]>>),
+    Extra(Buffer<Maybe<Box<[u8]>>>),
     Name(Vec<u8>),
     Comment(Vec<u8>),
     Crc(Buffer<[u8; 2]>),
@@ -75,20 +75,29 @@ impl State {
     }
 }
 
+#[derive(Debug, Default)]
+struct Config {
+    store_extra: bool,
+    store_name: bool,
+    store_comment: bool,
+}
+
 #[derive(Debug)]
 struct Parser {
+    conf: Config,
     state: State,
     header: Header,
     footer: Footer,
 }
 
 impl Parser {
-    fn new() -> Self {
+    fn new(conf: Config) -> Self {
         let state = State::Start(Buffer::default());
         let header = Header::empty();
         let footer = Footer::empty();
 
         Self {
+            conf,
             state,
             header,
             footer,
@@ -133,15 +142,24 @@ impl Parser {
                         return Parsed::Done;
                     };
 
-                    let len = u16::from_le_bytes(bytes);
-                    self.state = State::Extra(Buffer::alloc(len as usize));
+                    let len = u16::from_le_bytes(bytes) as usize;
+                    let buf = if self.conf.store_extra {
+                        Buffer::alloc(len).just()
+                    } else {
+                        Buffer::nothing(len)
+                    };
+
+                    self.state = State::Extra(buf);
                 }
                 State::Extra(buf) => {
                     let Some(extra) = buf.read_from(input) else {
                         return Parsed::Done;
                     };
 
-                    mem::swap(&mut self.header.extra, extra);
+                    if let Maybe::Just(extra) = extra {
+                        mem::swap(&mut self.header.extra, extra);
+                    }
+
                     self.state = State::Name(vec![]);
                 }
                 State::Name(out) => {
@@ -151,7 +169,10 @@ impl Parser {
                     }
 
                     let (read, parse) = read_while(0, input);
-                    out.extend_from_slice(read);
+                    if self.conf.store_name {
+                        out.extend_from_slice(read);
+                    }
+
                     if parse {
                         return Parsed::Done;
                     }
@@ -166,7 +187,10 @@ impl Parser {
                     }
 
                     let (read, parse) = read_while(0, input);
-                    out.extend_from_slice(read);
+                    if self.conf.store_comment {
+                        out.extend_from_slice(read);
+                    }
+
                     if parse {
                         return Parsed::Done;
                     }
@@ -306,7 +330,7 @@ impl Default for Decoder {
     fn default() -> Self {
         Self {
             deco: flate2::Decompress::new(false),
-            parser: Parser::new(),
+            parser: Parser::new(Config::default()),
             crc: Crc::default(),
         }
     }
@@ -382,7 +406,7 @@ mod tests {
         let mut d = Decoder::default();
         let mut output = vec![0; expected.len()];
         let mut p = 0;
-        let mut ended = false;
+        let mut finished = false;
 
         for mut part in input.chunks(4) {
             let Decoded::Done { written, end } = d.decode(&mut part, &mut output[p..]) else {
@@ -390,13 +414,13 @@ mod tests {
             };
 
             p += written;
-            ended = end || ended;
+            finished = end || finished;
 
             assert!(part.is_empty());
         }
 
         assert_eq!(p, expected.len());
-        assert!(ended);
+        assert!(finished);
         assert_eq!(output, expected);
     }
 
@@ -418,8 +442,8 @@ mod tests {
 
     #[test]
     fn decode_half_input() {
-        let expected = include_bytes!("../test/hello.txt");
-        let input = include_bytes!("../test/hello.gzip");
+        let expected = include_bytes!("../test/lorem.txt");
+        let input = include_bytes!("../test/lorem.gzip");
         let mut input = &input[..input.len() / 2];
 
         let mut d = Decoder::default();
