@@ -31,7 +31,6 @@ areq-h1 = { version = "=0.1.0-alpha2", path = "areq-h1" }
 async-channel = "2.3"
 async-executor = "1.13"
 async-net = "2.0"
-async-compression = { version = "0.4.18", features = ["futures-io", "gzip"] }
 bytes = "1.9"
 futures-concurrency = "7.6"
 futures-lite = { version = "2.5", default-features = false, features = ["std"] }
