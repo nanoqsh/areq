@@ -52,3 +52,29 @@ semicolon-if-nothing-returned = "deny"
 trivially-copy-pass-by-ref = "deny"
 use-self = "deny"
 unwrap-used = "deny"
+
+[profile.dev]
+opt-level = 1
+panic = "abort"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.ci]
+inherits = "dev"
+opt-level = 1
+
+[profile.ci.package."*"]
+opt-level = 1
+
+[profile.ci.build-override]
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
