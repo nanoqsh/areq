@@ -11,7 +11,7 @@ members = [
 
 [workspace.package]
 version = "0.1.0-alpha2"
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0 OR MIT"
 authors = ["nanoqsh"]
 keywords = ["web", "http", "net"]
@@ -22,7 +22,7 @@ categories = [
     "web-programming::http-client",
 ]
 repository = "https://github.com/nanoqsh/areq"
-rust-version = "1.82"
+rust-version = "1.85"
 
 [workspace.dependencies]
 areq = { version = "=0.1.0-alpha2", path = "areq" }

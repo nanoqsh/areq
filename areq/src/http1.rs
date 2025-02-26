@@ -6,7 +6,7 @@ use {
     },
     areq_h1::Config,
     futures_lite::prelude::*,
-    http::{header, HeaderValue, Version},
+    http::{HeaderValue, Version, header},
 };
 
 #[derive(Clone, Default)]

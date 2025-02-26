@@ -1,11 +1,11 @@
 use {
     crate::{
-        body::{prelude::*, BoxedLocal},
+        body::{BoxedLocal, prelude::*},
         http2,
     },
     bytes::Bytes,
     futures_lite::prelude::*,
-    http::{request, response, uri::Scheme, HeaderMap, Method, StatusCode, Uri, Version},
+    http::{HeaderMap, Method, StatusCode, Uri, Version, request, response, uri::Scheme},
     std::{
         borrow::Cow,
         error, fmt,
@@ -72,11 +72,7 @@ fn default_port(secure: bool) -> u16 {
     const HTTP: u16 = 80;
     const HTTPS: u16 = 443;
 
-    if secure {
-        HTTPS
-    } else {
-        HTTP
-    }
+    if secure { HTTPS } else { HTTP }
 }
 
 #[derive(Debug)]

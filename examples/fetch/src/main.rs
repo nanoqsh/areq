@@ -1,7 +1,7 @@
 use {
     areq::{
-        http::{Method, Uri},
         Handshake,
+        http::{Method, Uri},
     },
     async_net::TcpStream,
     futures_lite::{future, prelude::*},
@@ -74,9 +74,9 @@ where
     H: Handshake<TcpStream>,
 {
     use {
-        areq::{body::BodyExt, Address, Client, Request, Session},
+        areq::{Address, Client, Request, Session, body::BodyExt},
         async_net::TcpStream,
-        futures_lite::{future, io::BufReader, AsyncBufReadExt, StreamExt},
+        futures_lite::{AsyncBufReadExt, StreamExt, future, io::BufReader},
     };
 
     let addr = Address::from_uri(&uri)?;

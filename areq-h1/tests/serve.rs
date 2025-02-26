@@ -4,7 +4,7 @@ use {
     bytes::{Buf, BufMut, Bytes, BytesMut},
     futures_lite::future,
     http_body_util::Full,
-    hyper::{body::Incoming, server::conn::http1::Builder, service, Request, Response},
+    hyper::{Request, Response, body::Incoming, server::conn::http1::Builder, service},
     std::{io::Error, net::Ipv4Addr},
 };
 
@@ -44,7 +44,7 @@ fn serve() -> Result<(), Error> {
         tcp: TcpStream,
         payload: Vec<u32>,
     ) -> Result<Vec<u32>, Error> {
-        use areq_h1::{body::Full, Config};
+        use areq_h1::{Config, body::Full};
 
         let (reqs, conn) = Config::default().handshake(tcp);
         ex.spawn(conn).detach();

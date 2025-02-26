@@ -1,12 +1,12 @@
 use {
     crate::{
-        body::prelude::*, io::Io, proto::Client, tls::Negotiate, Error, Handshake, Request,
-        Response, Session,
+        Error, Handshake, Request, Response, Session, body::prelude::*, io::Io, proto::Client,
+        tls::Negotiate,
     },
     bytes::{Buf, Bytes},
     futures_lite::prelude::*,
     h2::client,
-    http::{header, HeaderValue, Version},
+    http::{HeaderValue, Version, header},
     std::{future, io},
 };
 

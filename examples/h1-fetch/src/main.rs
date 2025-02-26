@@ -1,6 +1,6 @@
 use {
     futures_lite::future,
-    http::{uri::Scheme, Uri},
+    http::{Uri, uri::Scheme},
     std::{
         env,
         io::{self, Error, Write},
@@ -36,7 +36,7 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
         areq_h1::Config,
         async_net::TcpStream,
         futures_lite::future,
-        http::{header, HeaderValue, Method, Request, Version},
+        http::{HeaderValue, Method, Request, Version, header},
     };
 
     let host = uri.host().expect("the url should have a host");

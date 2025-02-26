@@ -8,7 +8,7 @@ use {
     async_channel::{Receiver, Sender},
     bytes::{Buf, Bytes},
     futures_lite::prelude::*,
-    http::{header, HeaderValue, Request, Response},
+    http::{HeaderValue, Request, Response, header},
     std::{
         fmt, io,
         pin::{self, Pin},
@@ -319,7 +319,7 @@ mod tests {
     fn roundtrip_chunked() -> Result<(), Error> {
         use {
             crate::body::Chunked,
-            futures_lite::{stream, StreamExt},
+            futures_lite::{StreamExt, stream},
         };
 
         const CHUNKS: [&str; 5] = ["hello", "from", "the", "internet", ":3"];

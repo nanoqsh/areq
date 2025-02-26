@@ -1,6 +1,6 @@
 use http::{
-    header::{self, Entry},
     HeaderMap, HeaderValue,
+    header::{self, Entry},
 };
 
 const CHUNKED: &str = "chunked";

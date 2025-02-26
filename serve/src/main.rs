@@ -1,12 +1,13 @@
 use {
     axum::{
+        Router,
         response::{IntoResponse, Response},
-        routing, Router,
+        routing,
     },
     bytes::Bytes,
     futures_concurrency::prelude::*,
     futures_lite::{future, prelude::*, stream},
-    futures_rustls::{rustls::ServerConfig, TlsAcceptor},
+    futures_rustls::{TlsAcceptor, rustls::ServerConfig},
     http_body_util::StreamBody,
     hyper::{
         body::Frame,
@@ -15,9 +16,8 @@ use {
         service,
     },
     smol::{
-        channel,
+        Executor, Timer, channel,
         net::{TcpListener, TcpStream},
-        Executor, Timer,
     },
     std::{convert::Infallible, io::Error, net::Ipv4Addr, pin, sync::Arc, thread, time::Duration},
     tower::ServiceExt,
@@ -154,7 +154,7 @@ where
 
 trait Serve<I> {
     fn serve(&self, ex: Arc<Executor<'_>>, io: I)
-        -> impl Future<Output = Result<(), Error>> + Send;
+    -> impl Future<Output = Result<(), Error>> + Send;
 }
 
 struct H1(Router);

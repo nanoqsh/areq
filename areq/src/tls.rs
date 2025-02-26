@@ -6,10 +6,10 @@ use {
     areq_body::IntoBody,
     futures_lite::prelude::*,
     futures_rustls::{
+        TlsConnector,
         client::TlsStream,
         pki_types::ServerName,
         rustls::{ClientConfig, RootCertStore},
-        TlsConnector,
     },
     std::{io, sync::Arc},
     url::Host,
