@@ -81,7 +81,7 @@ fn main() {
         Ok(tcp)
     }
 
-    block_on_thread_pool(2, |ex| {
+    block_on_thread_pool(2, async |ex| {
         let tasks = (
             {
                 let ex = ex.clone();
@@ -106,10 +106,8 @@ fn main() {
             },
         );
 
-        async {
-            if let Err(e) = tasks.try_join().await {
-                eprintln!("runtime error: {e}");
-            }
+        if let Err(e) = tasks.try_join().await {
+            eprintln!("runtime error: {e}");
         }
     });
 }
@@ -133,10 +131,9 @@ where
     }
 }
 
-fn block_on_thread_pool<'ex, F, U>(n_threads: usize, f: F) -> U::Output
+fn block_on_thread_pool<'ex, F, U>(n_threads: usize, f: F) -> U
 where
-    F: FnOnce(Arc<Executor<'ex>>) -> U,
-    U: Future,
+    F: AsyncFnOnce(Arc<Executor<'ex>>) -> U,
 {
     let ex = Arc::new(Executor::new());
     let (stop, wait) = channel::unbounded::<Infallible>();

@@ -2,7 +2,7 @@ use {
     bytes::{Buf, Bytes, BytesMut},
     futures_lite::prelude::*,
     std::{
-        future::{self, IntoFuture},
+        future,
         io::Error,
         mem,
         ops::DerefMut,
