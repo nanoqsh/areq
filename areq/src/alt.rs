@@ -13,8 +13,8 @@ use {
 };
 
 pin_project_lite::pin_project! {
-    #[project = PinnedOr]
-    pub enum Or<L, R> {
+    #[project = Pinned]
+    pub enum Alt<L, R> {
         Lhs {
             #[pin]
             l: L,
@@ -26,7 +26,7 @@ pin_project_lite::pin_project! {
     }
 }
 
-impl<L, R> Or<L, R> {
+impl<L, R> Alt<L, R> {
     pub fn lhs(l: L) -> Self {
         Self::Lhs { l }
     }
@@ -36,13 +36,13 @@ impl<L, R> Or<L, R> {
     }
 }
 
-impl<I, L, R> Handshake<I> for Or<L, R>
+impl<I, L, R> Handshake<I> for Alt<L, R>
 where
     L: Handshake<I>,
     R: Handshake<I>,
 {
     type Client<B>
-        = Or<L::Client<B>, R::Client<B>>
+        = Alt<L::Client<B>, R::Client<B>>
     where
         B: IntoBody;
 
@@ -50,82 +50,76 @@ where
     where
         B: IntoBody,
     {
-        match self {
+        let (client, conn) = match self {
             Self::Lhs { l } => {
                 let (client, conn) = l.handshake(se).await?;
-                Ok((
-                    Or::lhs(client),
-                    Or::lhs(async {
-                        conn.await;
-                    }),
-                ))
+                (Alt::lhs(client), Alt::lhs(conn))
             }
             Self::Rhs { r } => {
                 let (client, conn) = r.handshake(se).await?;
-                Ok((
-                    Or::rhs(client),
-                    Or::rhs(async {
-                        conn.await;
-                    }),
-                ))
+                (Alt::rhs(client), Alt::rhs(conn))
             }
-        }
+        };
+
+        Ok((client, async {
+            conn.await;
+        }))
     }
 }
 
-impl<L, R> Negotiate for Or<L, R>
+impl<L, R> Negotiate for Alt<L, R>
 where
     L: Negotiate,
     R: Negotiate,
 {
-    type Handshake = Or<L::Handshake, R::Handshake>;
+    type Handshake = Alt<L::Handshake, R::Handshake>;
 
     fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
         match self {
-            Self::Lhs { l } => l.negotiate(proto).map(Or::lhs),
-            Self::Rhs { r } => r.negotiate(proto).map(Or::rhs),
+            Self::Lhs { l } => l.negotiate(proto).map(Alt::lhs),
+            Self::Rhs { r } => r.negotiate(proto).map(Alt::rhs),
         }
     }
 
     fn support(&self) -> impl Iterator<Item = &'static [u8]> {
         match self {
-            Self::Lhs { l } => Or::lhs(l.support()),
-            Self::Rhs { r } => Or::rhs(r.support()),
+            Self::Lhs { l } => Alt::lhs(l.support()),
+            Self::Rhs { r } => Alt::rhs(r.support()),
         }
     }
 }
 
-impl<B, L, R> Client<B> for Or<L, R>
+impl<B, L, R> Client<B> for Alt<L, R>
 where
     L: Client<B>,
     R: Client<B>,
 {
-    type Body = Or<L::Body, R::Body>;
+    type Body = Alt<L::Body, R::Body>;
 
     async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error> {
         match self {
-            Self::Lhs { l } => Ok(l.send(req).await?.map(Or::lhs)),
-            Self::Rhs { r } => Ok(r.send(req).await?.map(Or::rhs)),
+            Self::Lhs { l } => Ok(l.send(req).await?.map(Alt::lhs)),
+            Self::Rhs { r } => Ok(r.send(req).await?.map(Alt::rhs)),
         }
     }
 }
 
-impl<L, R> Future for Or<L, R>
+impl<L, R> Future for Alt<L, R>
 where
     L: Future,
-    R: Future<Output = L::Output>,
+    R: Future,
 {
-    type Output = L::Output;
+    type Output = Alt<L::Output, R::Output>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project() {
-            PinnedOr::Lhs { l } => l.poll(cx),
-            PinnedOr::Rhs { r } => r.poll(cx),
+            Pinned::Lhs { l } => l.poll(cx).map(Alt::lhs),
+            Pinned::Rhs { r } => r.poll(cx).map(Alt::rhs),
         }
     }
 }
 
-impl<L, R> Body for Or<L, R>
+impl<L, R> Body for Alt<L, R>
 where
     L: Body,
     R: Body<Chunk = L::Chunk>,
@@ -147,7 +141,7 @@ where
     }
 }
 
-impl<L, R> Iterator for Or<L, R>
+impl<L, R> Iterator for Alt<L, R>
 where
     L: Iterator,
     R: Iterator<Item = L::Item>,

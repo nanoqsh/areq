@@ -1,4 +1,4 @@
-use crate::or::Or;
+use crate::alt::Alt;
 
 pub trait Negotiate {
     type Handshake;
@@ -14,14 +14,14 @@ where
     L: Negotiate,
     R: Negotiate,
 {
-    type Handshake = Or<L::Handshake, R::Handshake>;
+    type Handshake = Alt<L::Handshake, R::Handshake>;
 
     fn negotiate(self, proto: &[u8]) -> Option<Self::Handshake> {
         let Self(l, r) = self;
 
         l.negotiate(proto)
-            .map(Or::lhs)
-            .or_else(|| r.negotiate(proto).map(Or::rhs))
+            .map(Alt::lhs)
+            .or_else(|| r.negotiate(proto).map(Alt::rhs))
     }
 
     fn support(&self) -> impl Iterator<Item = &'static [u8]> {
