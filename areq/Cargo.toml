@@ -14,17 +14,18 @@ rust-version.workspace = true
 [features]
 http1 = ["areq-h1"]
 http2 = ["h2", "tokio"]
+tls = ["futures-rustls", "rustls-pemfile"]
 
 [dependencies]
 areq-body.workspace = true
 areq-h1 = { workspace = true, optional = true }
 bytes.workspace = true
-futures-lite.workspace = true
-futures-rustls.workspace = true
+futures-lite = { workspace = true, features = ["std"] }
+futures-rustls = { workspace = true, optional = true }
 h2 = { workspace = true, optional = true }
 http.workspace = true
 pin-project-lite.workspace = true
-rustls-pemfile.workspace = true
+rustls-pemfile = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 url.workspace = true
 

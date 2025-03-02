@@ -13,7 +13,7 @@ rust-version.workspace = true
 
 [dependencies]
 bytes.workspace = true
-futures-lite.workspace = true
+futures-lite = { workspace = true, features = ["std"] }
 pin-project-lite.workspace = true
 
 [features]

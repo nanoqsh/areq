@@ -1,7 +1,7 @@
 use {
     crate::{
+        negotiate::Negotiate,
         proto::{Client, Error, Handshake, Request, Response, Session},
-        tls::Negotiate,
     },
     areq_body::prelude::*,
     futures_lite::prelude::*,
