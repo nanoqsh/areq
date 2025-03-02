@@ -134,7 +134,7 @@ where
             match size {
                 Hint::Full { .. } => {
                     let chunk = body.take_full().await?;
-                    send_body.send_data(Flow::from_option(chunk), true)?;
+                    send_body.send_data(chunk.map_or(Flow::End, Flow::Next), true)?;
                 }
                 Hint::Chunked { .. } => {
                     while let Some(chunk) = body.chunk().await {
@@ -159,15 +159,6 @@ where
 enum Flow<B> {
     Next(B),
     End,
-}
-
-impl<B> Flow<B> {
-    fn from_option(opt: Option<B>) -> Self {
-        match opt {
-            Some(buf) => Self::Next(buf),
-            None => Self::End,
-        }
-    }
 }
 
 impl<B> Buf for Flow<B>
@@ -213,10 +204,16 @@ impl Body for BodyH2 {
     }
 }
 
-pub(crate) fn into_io_error(e: h2::Error) -> io::Error {
+fn into_io_error(e: h2::Error) -> io::Error {
     if e.is_io() {
         e.into_io().expect("the error should be IO")
     } else {
         io::Error::other(e)
+    }
+}
+
+impl From<h2::Error> for Error {
+    fn from(e: h2::Error) -> Self {
+        Self::Io(into_io_error(e))
     }
 }

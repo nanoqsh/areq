@@ -11,17 +11,21 @@ categories.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+http1 = ["areq-h1"]
+http2 = ["h2", "tokio"]
+
 [dependencies]
 areq-body.workspace = true
-areq-h1.workspace = true
+areq-h1 = { workspace = true, optional = true }
 bytes.workspace = true
 futures-lite.workspace = true
 futures-rustls.workspace = true
-h2 = "0.4"
+h2 = { workspace = true, optional = true }
 http.workspace = true
 pin-project-lite.workspace = true
 rustls-pemfile.workspace = true
-tokio = "1"
+tokio = { workspace = true, optional = true }
 url.workspace = true
 
 [lints]

@@ -1,8 +1,5 @@
 use {
-    crate::{
-        body::{BoxedLocal, prelude::*},
-        http2,
-    },
+    crate::body::{BoxedLocal, prelude::*},
     bytes::Bytes,
     futures_lite::prelude::*,
     http::{HeaderMap, Method, StatusCode, Uri, Version, request, response, uri::Scheme},
@@ -134,18 +131,6 @@ impl Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
         Self::Io(e)
-    }
-}
-
-impl From<areq_h1::Error> for Error {
-    fn from(e: areq_h1::Error) -> Self {
-        Self::Io(e.into())
-    }
-}
-
-impl From<h2::Error> for Error {
-    fn from(e: h2::Error) -> Self {
-        Self::Io(http2::into_io_error(e))
     }
 }
 

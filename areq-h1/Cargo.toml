@@ -17,15 +17,15 @@ async-channel.workspace = true
 bytes.workspace = true
 futures-lite.workspace = true
 http.workspace = true
-httparse = "1.9"
+httparse.workspace = true
 
 [dev-dependencies]
 async-executor.workspace = true
 async-net.workspace = true
-hyper = { version = "1", features = ["http1", "server"] }
-http-body-util = "0.1"
-serde_json = "1.0"
-smol-hyper = "0.1"
+hyper = { workspace = true, features = ["http1", "server"] }
+http-body-util.workspace = true
+serde_json.workspace = true
+smol-hyper.workspace = true
 
 [lints]
 workspace = true

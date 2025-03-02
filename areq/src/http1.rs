@@ -86,3 +86,9 @@ where
         Ok(Response::new(res))
     }
 }
+
+impl From<areq_h1::Error> for Error {
+    fn from(e: areq_h1::Error) -> Self {
+        Self::Io(e.into())
+    }
+}
