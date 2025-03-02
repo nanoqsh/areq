@@ -1,7 +1,7 @@
 use {
     areq::{
-        Handshake,
         http::{Method, Uri},
+        prelude::*,
     },
     async_net::TcpStream,
     futures_lite::{future, prelude::*},
@@ -19,17 +19,7 @@ fn main() {
         return;
     };
 
-    let proto = match proto.as_str() {
-        "http1" => Protocol::Http1,
-        "http2" => Protocol::Http2,
-        "tls" => Protocol::Tls,
-        undefined => {
-            eprintln!("undefined http protocol: {undefined}");
-            return;
-        }
-    };
-
-    let uri: Uri = match uri.parse() {
+    let uri = match uri.parse() {
         Ok(uri) => uri,
         Err(e) => {
             eprintln!("failed to parse uri: {e}");
@@ -37,18 +27,12 @@ fn main() {
         }
     };
 
-    if let Err(e) = future::block_on(fetch(proto, uri)) {
+    if let Err(e) = future::block_on(fetch(&proto, uri)) {
         eprintln!("io error: {e}");
     }
 }
 
-enum Protocol {
-    Http1,
-    Http2,
-    Tls,
-}
-
-async fn fetch(proto: Protocol, uri: Uri) -> Result<(), Error> {
+async fn fetch(proto: &str, uri: Uri) -> Result<(), Error> {
     use areq::{
         http1::Http1,
         http2::Http2,
@@ -56,15 +40,19 @@ async fn fetch(proto: Protocol, uri: Uri) -> Result<(), Error> {
     };
 
     match proto {
-        Protocol::Http1 => get(Http1::default(), uri).await,
-        Protocol::Http2 => get(Http2::default(), uri).await,
-        Protocol::Tls => {
+        "http1" => get(Http1::default(), uri).await,
+        "http2" => get(Http2::default(), uri).await,
+        "tls" => {
             let tls = Tls::with_cert(
                 Select(Http1::default(), Http2::default()),
                 include_bytes!("../../../certs/cert.pem"),
             )?;
 
             get(tls, uri).await
+        }
+        unknown => {
+            eprintln!("unknown http protocol: {unknown}");
+            Ok(())
         }
     }
 }
@@ -74,9 +62,9 @@ where
     H: Handshake<TcpStream>,
 {
     use {
-        areq::{Address, Client, Request, Session, body::BodyExt},
+        areq::{Address, Request, Session},
         async_net::TcpStream,
-        futures_lite::{AsyncBufReadExt, StreamExt, future, io::BufReader},
+        futures_lite::io::BufReader,
     };
 
     let addr = Address::from_uri(&uri)?;
@@ -105,11 +93,11 @@ where
         println!();
 
         // print response body
-        let lines = BufReader::new(res.body().read()).lines();
+        let read = pin::pin!(res.body().read());
+        let mut lines = BufReader::new(read).lines();
         let mut stdout = io::stdout();
 
-        let mut stream = pin::pin!(lines);
-        while let Some(line) = stream.try_next().await? {
+        while let Some(line) = lines.try_next().await? {
             stdout.write_all(line.as_bytes())?;
             stdout.flush()?;
         }

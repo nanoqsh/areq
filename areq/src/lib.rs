@@ -10,6 +10,13 @@ mod proto;
 #[cfg(feature = "tls")]
 pub mod tls;
 
+pub mod prelude {
+    pub use {
+        crate::{Client, Handshake},
+        areq_body::prelude::*,
+    };
+}
+
 pub mod body {
     pub use areq_body::*;
 }
