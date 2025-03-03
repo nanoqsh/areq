@@ -1,5 +1,5 @@
-pub trait SendBody: Body<chunk(..): Send> + Send {}
-impl<B> SendBody for B where B: Body<chunk(..): Send> + Send {}
+pub trait SendBody: Body<Chunk: Send, chunk(..): Send> + Send {}
+impl<B> SendBody for B where B: Body<Chunk: Send, chunk(..): Send> + Send {}
 
 pub trait BodyExtRtn: IntoBody {
     #[inline]

@@ -395,7 +395,7 @@ pub trait BodyExt: IntoBody {
 impl<B> BodyExt for B where B: IntoBody {}
 
 #[cfg(feature = "rtn")]
-include!("body_ext_rtn.rs");
+include!("body_rtn.rs");
 
 enum Step<B, C> {
     Next { body: B, res: Result<C, Error> },

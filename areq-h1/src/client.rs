@@ -38,7 +38,7 @@ impl Config {
     pub fn handshake<I, B>(self, io: I) -> (Requester<B>, impl Future<Output = ()>)
     where
         I: AsyncRead + AsyncWrite,
-        B: IntoBody,
+        B: Body,
     {
         let (send_req, recv_req) = async_channel::bounded(1);
         let (send_res, recv_res) = async_channel::bounded(1);
@@ -79,14 +79,12 @@ struct Connection<'pin, I, B> {
 async fn connect<I, B>(mut conn: Connection<'_, I, B>)
 where
     I: AsyncRead + AsyncWrite,
-    B: IntoBody,
+    B: Body,
 {
     while let Ok(req) = conn.recv_req.recv().await {
         let process = async {
-            let (parts, body) = req.into_parts();
-
+            let (parts, mut body) = req.into_parts();
             let mut head = Request::from_parts(parts, ());
-            let mut body = body.into_body();
 
             match body.size_hint() {
                 Hint::Full { .. } => {
@@ -178,10 +176,7 @@ pub struct Requester<B> {
 
 impl<B> Requester<B> {
     #[inline]
-    pub async fn send(&self, req: Request<B>) -> Result<Response<FetchBody>, Error>
-    where
-        B: IntoBody,
-    {
+    pub async fn send(&self, req: Request<B>) -> Result<Response<FetchBody>, Error> {
         self.send_req.send(req).await.map_err(|_| Error::Closed)?;
         self.recv_res.recv().await.map_err(|_| Error::Closed)?
     }

@@ -2,7 +2,10 @@ use {
     crate::body::{BoxedLocal, prelude::*},
     bytes::Bytes,
     futures_lite::prelude::*,
-    http::{HeaderMap, Method, StatusCode, Uri, Version, request, response, uri::Scheme},
+    http::{
+        HeaderMap, Method, StatusCode, Uri, Version, request, response,
+        uri::{Authority, Scheme},
+    },
     std::{
         borrow::Cow,
         error, fmt,
@@ -31,17 +34,19 @@ impl Address {
     /// Returns [`InvalidUri`] if url is not valid.
     pub fn from_uri(uri: &Uri) -> Result<Self, InvalidUri> {
         let scheme = uri.scheme().ok_or(InvalidUri::NoScheme)?;
+        let authority = uri.authority().ok_or(InvalidUri::InvalidHost)?;
+        Self::new(scheme, authority)
+    }
+
+    pub fn new(scheme: &Scheme, authority: &Authority) -> Result<Self, InvalidUri> {
         if scheme != &Scheme::HTTP && scheme != &Scheme::HTTPS {
             return Err(InvalidUri::NonHttpScheme);
         }
 
-        let host = uri
-            .host()
-            .and_then(|host| Host::parse(host).ok())
-            .ok_or(InvalidUri::Host)?;
+        let host = Host::parse(authority.host()).map_err(|_| InvalidUri::InvalidHost)?;
 
         let secure = scheme == &Scheme::HTTPS;
-        let port = uri
+        let port = authority
             .port()
             .map(|port| port.as_u16())
             .unwrap_or(default_port(secure));
@@ -76,7 +81,7 @@ fn default_port(secure: bool) -> u16 {
 pub enum InvalidUri {
     NoScheme,
     NonHttpScheme,
-    Host,
+    InvalidHost,
 }
 
 impl From<InvalidUri> for io::Error {
@@ -90,7 +95,7 @@ impl fmt::Display for InvalidUri {
         match self {
             Self::NoScheme => write!(f, "no scheme"),
             Self::NonHttpScheme => write!(f, "non http(s) scheme"),
-            Self::Host => write!(f, "invalid host"),
+            Self::InvalidHost => write!(f, "invalid host"),
         }
     }
 }

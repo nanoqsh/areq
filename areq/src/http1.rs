@@ -54,12 +54,18 @@ impl Negotiate for Http1 {
     }
 }
 
-pub struct H1<B> {
-    reqs: areq_h1::Requester<B>,
+pub struct H1<B>
+where
+    B: IntoBody,
+{
+    reqs: areq_h1::Requester<B::Body>,
     host: HeaderValue,
 }
 
-impl<B> H1<B> {
+impl<B> H1<B>
+where
+    B: IntoBody,
+{
     fn prepare(&self, req: &mut Request<B>) {
         *req.version_mut() = Version::HTTP_11;
 
@@ -82,7 +88,8 @@ where
 
     async fn send(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
         self.prepare(&mut req);
-        let res = self.reqs.send(req.into()).await?;
+        let req = req.map(B::into_body).into();
+        let res = self.reqs.send(req).await?;
         Ok(Response::new(res))
     }
 }

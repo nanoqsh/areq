@@ -15,6 +15,7 @@ rust-version.workspace = true
 http1 = ["areq-h1"]
 http2 = ["h2", "tokio"]
 tls = ["futures-rustls", "rustls-pemfile"]
+rtn = ["areq-body/rtn"]
 
 [dependencies]
 areq-body.workspace = true
