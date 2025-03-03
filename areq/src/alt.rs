@@ -36,20 +36,14 @@ impl<L, R> Alt<L, R> {
     }
 }
 
-impl<I, L, R> Handshake<I> for Alt<L, R>
+impl<I, B, L, R> Handshake<I, B> for Alt<L, R>
 where
-    L: Handshake<I>,
-    R: Handshake<I>,
+    L: Handshake<I, B>,
+    R: Handshake<I, B>,
 {
-    type Client<B>
-        = Alt<L::Client<B>, R::Client<B>>
-    where
-        B: IntoBody;
+    type Client = Alt<L::Client, R::Client>;
 
-    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
-    where
-        B: IntoBody,
-    {
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error> {
         let (client, conn) = match self {
             Self::Lhs { l } => {
                 let (client, conn) = l.handshake(se).await?;

@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "rtn", feature(return_type_notation))]
+
 mod alt;
 #[cfg(feature = "http1")]
 pub mod http1;
@@ -7,6 +9,8 @@ pub mod http2;
 mod io;
 mod negotiate;
 mod proto;
+#[cfg(feature = "rtn")]
+mod proto_rtn;
 #[cfg(feature = "tls")]
 pub mod tls;
 
@@ -28,3 +32,6 @@ pub use {
     },
     http,
 };
+
+#[cfg(feature = "rtn")]
+pub use crate::proto::HandshakeWith;

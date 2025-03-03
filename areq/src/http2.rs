@@ -21,19 +21,14 @@ impl Http2 {
     const ALPN: &[u8] = b"h2";
 }
 
-impl<I> Handshake<I> for Http2
+impl<I, B> Handshake<I, B> for Http2
 where
     I: AsyncRead + AsyncWrite + Unpin,
+    B: IntoBody,
 {
-    type Client<B>
-        = H2<B>
-    where
-        B: IntoBody;
+    type Client = H2<B>;
 
-    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
-    where
-        B: IntoBody,
-    {
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error> {
         let Session { addr, io } = se;
         let io = Io::new(io);
         let (send, conn) = self.build.handshake(io).await?;

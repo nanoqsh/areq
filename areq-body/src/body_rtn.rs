@@ -1,3 +1,5 @@
+use crate::body::{Body, BodyExt, Boxed, IntoBody};
+
 pub trait SendBody: Body<Chunk: Send, chunk(..): Send> + Send {}
 impl<B> SendBody for B where B: Body<Chunk: Send, chunk(..): Send> + Send {}
 

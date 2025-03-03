@@ -1,6 +1,5 @@
 use {
     crate::proto::{Error, Handshake, Session},
-    areq_body::IntoBody,
     futures_lite::prelude::*,
     futures_rustls::{
         TlsConnector,
@@ -14,40 +13,34 @@ use {
 
 pub use crate::negotiate::{Negotiate, Select};
 
-pub struct Tls<H> {
-    inner: H,
+pub struct Tls<N> {
+    inner: N,
     connector: TlsConnector,
 }
 
-impl<H> Tls<H> {
-    pub fn with_cert(inner: H, cert: &[u8]) -> Result<Self, Error>
+impl<N> Tls<N> {
+    pub fn with_cert(inner: N, cert: &[u8]) -> Result<Self, Error>
     where
-        H: Negotiate,
+        N: Negotiate,
     {
         let conf = read_tls_config(cert, inner.support())?;
         let connector = TlsConnector::from(Arc::new(conf));
         Ok(Self::with_connector(inner, connector))
     }
 
-    pub fn with_connector(inner: H, connector: TlsConnector) -> Self {
+    pub fn with_connector(inner: N, connector: TlsConnector) -> Self {
         Self { inner, connector }
     }
 }
 
-impl<I, H> Handshake<I> for Tls<H>
+impl<I, B, N> Handshake<I, B> for Tls<N>
 where
     I: AsyncRead + AsyncWrite + Unpin,
-    H: Negotiate<Handshake: Handshake<TlsStream<I>>>,
+    N: Negotiate<Handshake: Handshake<TlsStream<I>, B>>,
 {
-    type Client<B>
-        = <H::Handshake as Handshake<TlsStream<I>>>::Client<B>
-    where
-        B: IntoBody;
+    type Client = <N::Handshake as Handshake<TlsStream<I>, B>>::Client;
 
-    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
-    where
-        B: IntoBody,
-    {
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error> {
         let Session { addr, io } = se;
 
         let name = as_server_name(&addr.host)?.to_owned();
@@ -82,7 +75,7 @@ fn as_server_name(host: &Host) -> Result<ServerName<'_>, Error> {
 
 fn read_tls_config<P>(mut cert: &[u8], protos: P) -> Result<ClientConfig, io::Error>
 where
-    P: IntoIterator<Item = &'static [u8]>,
+    P: Iterator<Item = &'static [u8]>,
 {
     let mut root = RootCertStore::empty();
     for cert in rustls_pemfile::certs(&mut cert) {
@@ -93,8 +86,7 @@ where
         .with_root_certificates(root)
         .with_no_client_auth();
 
-    conf.alpn_protocols
-        .extend(protos.into_iter().map(Vec::from));
+    conf.alpn_protocols.extend(protos.map(Vec::from));
 
     Ok(conf)
 }

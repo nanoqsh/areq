@@ -18,19 +18,14 @@ impl Http1 {
     const ALPN: &[u8] = b"http/1.1";
 }
 
-impl<I> Handshake<I> for Http1
+impl<I, B> Handshake<I, B> for Http1
 where
     I: AsyncRead + AsyncWrite,
+    B: IntoBody,
 {
-    type Client<B>
-        = H1<B>
-    where
-        B: IntoBody;
+    type Client = H1<B>;
 
-    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
-    where
-        B: IntoBody,
-    {
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error> {
         let Session { addr, io } = se;
         let (reqs, conn) = self.conf.handshake(io);
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;

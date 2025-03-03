@@ -4,6 +4,7 @@ members = [
     "areq",
     "areq-body",
     "areq-h1",
+    "areq-smol",
     "examples/fetch",
     "examples/h1-fetch",
     "serve",

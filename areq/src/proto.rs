@@ -14,13 +14,18 @@ use {
     url::Host,
 };
 
+#[cfg(feature = "rtn")]
+pub use crate::proto_rtn::HandshakeWith;
+
 /// The communication session between a client and a host.
+#[derive(Clone, Debug)]
 pub struct Session<I> {
     pub addr: Address,
     pub io: I,
 }
 
 /// The network address.
+#[derive(Clone, Debug)]
 pub struct Address {
     pub host: Host,
     pub port: u16,
@@ -36,6 +41,22 @@ impl Address {
         let scheme = uri.scheme().ok_or(InvalidUri::NoScheme)?;
         let authority = uri.authority().ok_or(InvalidUri::InvalidHost)?;
         Self::new(scheme, authority)
+    }
+
+    pub fn http<A>(authority: A) -> Result<Self, InvalidUri>
+    where
+        A: TryInto<Authority>,
+    {
+        let authority = authority.try_into().map_err(|_| InvalidUri::InvalidHost)?;
+        Self::new(&Scheme::HTTP, &authority)
+    }
+
+    pub fn https<A>(authority: A) -> Result<Self, InvalidUri>
+    where
+        A: TryInto<Authority>,
+    {
+        let authority = authority.try_into().map_err(|_| InvalidUri::InvalidHost)?;
+        Self::new(&Scheme::HTTPS, &authority)
     }
 
     pub fn new(scheme: &Scheme, authority: &Authority) -> Result<Self, InvalidUri> {
@@ -103,17 +124,13 @@ impl fmt::Display for InvalidUri {
 impl error::Error for InvalidUri {}
 
 /// The trait to establish a client session over an asynchronous connection.
-pub trait Handshake<I> {
+pub trait Handshake<I, B> {
     /// The client type returned by the handshake process.
-    type Client<B>: Client<B>
-    where
-        B: IntoBody;
+    type Client: Client<B>;
 
     /// Perform a handshake to establish a client session.
     #[expect(async_fn_in_trait)]
-    async fn handshake<B>(self, se: Session<I>) -> Result<(Self::Client<B>, impl Future), Error>
-    where
-        B: IntoBody;
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error>;
 }
 
 /// The [handshake](Handshake) error type.

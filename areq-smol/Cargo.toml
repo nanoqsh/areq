@@ -1,0 +1,23 @@
+[package]
+name = "areq-smol"
+description = "Async HTTP requests for the smol runtime"
+documentation = "https://docs.rs/areq-smol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+rtn = ["areq/rtn"]
+
+[dependencies]
+areq = { workspace = true, features = ["http1"] }
+async-net.workspace = true
+async-executor.workspace = true
+
+[lints]
+workspace = true

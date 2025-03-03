@@ -11,6 +11,9 @@ use {
     },
 };
 
+#[cfg(feature = "rtn")]
+pub use crate::body_rtn::{BodyExtRtn, SendBody};
+
 pub trait Body {
     type Chunk: Buf;
 
@@ -393,9 +396,6 @@ pub trait BodyExt: IntoBody {
 }
 
 impl<B> BodyExt for B where B: IntoBody {}
-
-#[cfg(feature = "rtn")]
-include!("body_rtn.rs");
 
 enum Step<B, C> {
     Next { body: B, res: Result<C, Error> },

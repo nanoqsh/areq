@@ -59,7 +59,7 @@ async fn fetch(proto: &str, uri: Uri) -> Result<(), Error> {
 
 async fn get<H>(handshake: H, uri: Uri) -> Result<(), Error>
 where
-    H: Handshake<TcpStream>,
+    H: Handshake<TcpStream, ()>,
 {
     use {
         areq::{Address, Request, Session},
