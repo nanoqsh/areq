@@ -12,12 +12,16 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
+executor = ["async-executor"]
+http1 = ["areq/http1"]
+http2 = ["areq/http2"]
+tls = ["areq/tls"]
 rtn = ["areq/rtn"]
 
 [dependencies]
-areq = { workspace = true, features = ["http1"] }
+areq.workspace = true
 async-net.workspace = true
-async-executor.workspace = true
+async-executor = { workspace = true, optional = true }
 
 [lints]
 workspace = true

@@ -29,6 +29,7 @@ rust-version = "1.85"
 areq = { version = "=0.1.0-alpha2", path = "areq" }
 areq-body = { version = "=0.1.0-alpha2", path = "areq-body" }
 areq-h1 = { version = "=0.1.0-alpha2", path = "areq-h1" }
+areq-smol = { version = "=0.1.0-alpha2", path = "areq-smol" }
 async-channel = "2.3"
 async-executor = "1.13"
 async-net = "2.0"

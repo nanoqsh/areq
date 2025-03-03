@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "rtn", feature(return_type_notation))]
 
+mod addr;
 mod alt;
 #[cfg(feature = "http1")]
 pub mod http1;
@@ -27,8 +28,9 @@ pub mod body {
 
 pub use {
     crate::{
+        addr::{Address, IntoHost, InvalidUri},
         alt::Alt,
-        proto::{Address, Client, Error, Handshake, InvalidUri, Request, Response, Session},
+        proto::{Client, Error, Handshake, Request, Response, Session},
     },
     http,
 };
