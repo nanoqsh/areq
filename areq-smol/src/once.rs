@@ -1,3 +1,24 @@
+//! Module for one-time requests.
+//!
+//! *Warning: Currently under development*
+//!
+//! A simple API for quickly creating a request without the need to manage
+//! a client or maintain a connection. Whenever possible, use the full API, as
+//! it is more optimized and flexible.
+//!
+//! # Examples
+//!
+//! ```
+//! # async fn request() -> Result<(), std::io::Error> {
+//! let s = areq_smol::once::get("http://127.0.0.1:3001/hello")?
+//!     .text()
+//!     .await?;
+//!
+//! assert_eq!(s, "Hello, World!");
+//! # Ok(())
+//! # }
+//! ```
+
 use {
     areq::{
         Address, Handshake, Request, Session,

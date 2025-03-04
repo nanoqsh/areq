@@ -15,6 +15,7 @@ mod proto_rtn;
 #[cfg(feature = "tls")]
 pub mod tls;
 
+/// The crate's prelude.
 pub mod prelude {
     pub use {
         crate::{Client, Handshake},

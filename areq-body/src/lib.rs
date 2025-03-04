@@ -4,6 +4,7 @@ mod body;
 #[cfg(feature = "rtn")]
 mod body_rtn;
 
+/// The crate's prelude.
 pub mod prelude {
     pub use crate::{Body, BodyExt as _, Hint, IntoBody};
 

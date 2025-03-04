@@ -14,15 +14,26 @@ use {
 #[cfg(feature = "rtn")]
 pub use crate::body_rtn::{BodyExtRtn, SendBody};
 
+/// Type representing the body of an HTTP request/response.
 pub trait Body {
+    /// Type of the body data chunk.
     type Chunk: Buf;
 
+    /// Asynchronously retrieves a body data chunk.
+    ///
+    /// Returns `Some(Ok(c))` when data is successfully received.
+    /// If an I/O error occurs, it is returned as `Some(Err(e))`.
+    /// When the entire body has been received, a returned `None`
+    /// indicates the end of the data stream.
     #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
+
+    /// Returns a size [hint](Hint) for the body.
     fn size_hint(&self) -> Hint;
 }
 
-#[derive(Clone, Copy)]
+/// Body size hint.
+#[derive(Clone, Copy, Debug)]
 pub enum Hint {
     Full { len: Option<u64> },
     Chunked { end: bool },
@@ -41,6 +52,7 @@ impl Hint {
         matches!(self, Self::Chunked { .. })
     }
 
+    /// Checks if the body data stream has ended.
     #[inline]
     pub fn end(self) -> bool {
         match self {
@@ -140,9 +152,11 @@ impl<'str> Body for &'str str {
     }
 }
 
+/// Returns the full body from a [buffer](Buf).
 pub struct Full<B>(Option<B>);
 
 impl<B> Full<B> {
+    /// Creates a body from the given [buffer](Buf).
     #[inline]
     pub fn new(body: B) -> Self {
         Self(Some(body))
