@@ -4,7 +4,7 @@ use {
     async_net::TcpStream,
 };
 
-pub async fn spawn_on<'ex, H, B>(
+pub async fn spawn<'ex, H, B>(
     ex: &Executor<'ex>,
     handshake: H,
     se: Session<TcpStream>,
@@ -20,7 +20,7 @@ where
     Ok(Spawned { client, task })
 }
 
-pub async fn spawn_on_local<'ex, H, B>(
+pub async fn spawn_local<'ex, H, B>(
     ex: &LocalExecutor<'ex>,
     handshake: H,
     se: Session<TcpStream>,

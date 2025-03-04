@@ -1,0 +1,11 @@
+[package]
+name = "hello-smol"
+version = "0.0.0"
+edition.workspace = true
+
+[dependencies]
+areq-smol = { workspace = true, features = ["http1", "rtn"] }
+futures-lite.workspace = true
+
+[lints]
+workspace = true

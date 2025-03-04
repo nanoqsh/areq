@@ -1,12 +1,16 @@
 pub mod addr;
-#[cfg(feature = "rtn")]
+#[cfg(all(feature = "executor", feature = "rtn"))]
 mod ex;
+#[cfg(all(feature = "http1", feature = "rtn"))]
+pub mod once;
 
 pub mod prelude {
     pub use {crate::addr::AddressExt as _, areq::prelude::*};
 }
 
-#[cfg(feature = "rtn")]
-pub use crate::ex::{Spawned, spawn_on, spawn_on_local};
+pub mod areq {
+    pub use areq::*;
+}
 
-pub use areq;
+#[cfg(all(feature = "executor", feature = "rtn"))]
+pub use crate::ex::{Spawned, spawn, spawn_local};

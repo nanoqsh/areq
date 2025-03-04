@@ -112,6 +112,7 @@ impl<B> Request<B> {
         Self { head, body }
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn version_mut(&mut self) -> &mut Version {
         &mut self.head.version
     }
@@ -195,16 +196,6 @@ impl<B> Response<B> {
         Response {
             head: self.head,
             body: f(self.body),
-        }
-    }
-
-    pub fn boxed(self) -> Response
-    where
-        B: Body<Chunk = Bytes> + 'static,
-    {
-        Response {
-            head: self.head,
-            body: self.body.boxed_local(),
         }
     }
 

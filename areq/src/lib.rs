@@ -32,7 +32,7 @@ pub use {
         alt::Alt,
         proto::{Client, Error, Handshake, Request, Response, Session},
     },
-    http,
+    bytes, http,
 };
 
 #[cfg(feature = "rtn")]

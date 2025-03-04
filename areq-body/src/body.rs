@@ -284,8 +284,8 @@ where
     }
 }
 
-pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
+pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 
 pub trait BodyExt: IntoBody {
     #[expect(async_fn_in_trait)]

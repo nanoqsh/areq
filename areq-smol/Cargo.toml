@@ -22,6 +22,7 @@ rtn = ["areq/rtn"]
 areq.workspace = true
 async-net.workspace = true
 async-executor = { workspace = true, optional = true }
+futures-lite = { workspace = true, features = ["std"] }
 
 [lints]
 workspace = true
