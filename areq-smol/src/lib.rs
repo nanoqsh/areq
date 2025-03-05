@@ -1,8 +1,6 @@
 pub mod addr;
 #[cfg(all(feature = "executor", feature = "rtn"))]
 mod ex;
-#[cfg(all(feature = "http1", feature = "rtn"))]
-pub mod once;
 mod proto;
 
 /// The crate's prelude.
