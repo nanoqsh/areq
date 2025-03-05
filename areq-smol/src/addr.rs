@@ -29,9 +29,13 @@ pub trait AddressExt {
     async fn connect(self) -> Result<Session<TcpStream>, Error>;
 }
 
-impl AddressExt for Address {
+impl<A> AddressExt for A
+where
+    A: TryInto<Address, Error: Into<Error>>,
+{
     async fn connect(self) -> Result<Session<TcpStream>, Error> {
-        let io = TcpStream::connect(self.repr().as_ref()).await?;
-        Ok(Session { addr: self, io })
+        let addr = self.try_into().map_err(A::Error::into)?;
+        let io = TcpStream::connect(addr.repr().as_ref()).await?;
+        Ok(Session { addr, io })
     }
 }

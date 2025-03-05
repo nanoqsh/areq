@@ -1,4 +1,5 @@
 use {
+    crate::proto::Error,
     http::{
         Uri,
         uri::{Authority, Scheme},
@@ -85,6 +86,14 @@ impl Address {
     }
 }
 
+impl TryFrom<&Uri> for Address {
+    type Error = InvalidUri;
+
+    fn try_from(uri: &Uri) -> Result<Self, Self::Error> {
+        Self::from_uri(uri)
+    }
+}
+
 fn default_port(secure: bool) -> u16 {
     const HTTP: u16 = 80;
     const HTTPS: u16 = 443;
@@ -105,6 +114,12 @@ impl From<InvalidUri> for io::Error {
     }
 }
 
+impl From<InvalidUri> for Error {
+    fn from(e: InvalidUri) -> Self {
+        Self::Io(e.into())
+    }
+}
+
 impl fmt::Display for InvalidUri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -122,7 +137,7 @@ pub trait IntoHost {
 }
 
 impl IntoHost for Host {
-    fn into_host(self) -> Host {
+    fn into_host(self) -> Self {
         self
     }
 }
@@ -154,8 +169,8 @@ impl IntoHost for Ipv6Addr {
 impl IntoHost for IpAddr {
     fn into_host(self) -> Host {
         match self {
-            IpAddr::V4(ip4) => ip4.into_host(),
-            IpAddr::V6(ip6) => ip6.into_host(),
+            Self::V4(ip4) => ip4.into_host(),
+            Self::V6(ip6) => ip6.into_host(),
         }
     }
 }

@@ -93,7 +93,7 @@ where
 
         let handle_io = async {
             conn.await;
-            Ok::<_, Error>(())
+            Ok(())
         };
 
         let send_request = async move {

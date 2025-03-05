@@ -1,8 +1,9 @@
 use {
     crate::{
         body::prelude::*,
+        client::Client,
         negotiate::Negotiate,
-        proto::{Client, Error, Handshake, Request, Response, Session},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     areq_h1::Config,
     futures_lite::prelude::*,

@@ -1,13 +1,24 @@
 fn main() {
-    use {futures_lite::future, std::io::Error};
+    use {
+        areq_smol::{
+            areq::{http::Uri, http1::Http1},
+            prelude::*,
+        },
+        std::io::Error,
+    };
 
     async fn make_request() -> Result<String, Error> {
-        areq_smol::once::get("http://127.0.0.1:3001/hello")?
-            .text()
+        let uri = Uri::from_static("http://127.0.0.1:3001/hello");
+
+        uri.connect()
+            .await?
+            .handshake(Http1::default())
+            .await?
+            .handle(async |mut client| client.get(uri).await?.body().text().await)
             .await
     }
 
-    match future::block_on(make_request()) {
+    match futures_lite::future::block_on(make_request()) {
         Ok(text) => println!("{text}"),
         Err(e) => eprintln!("io error: {e}"),
     }

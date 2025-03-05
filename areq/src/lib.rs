@@ -2,6 +2,7 @@
 
 mod addr;
 mod alt;
+mod client;
 #[cfg(feature = "http1")]
 pub mod http1;
 #[cfg(feature = "http2")]
@@ -18,7 +19,7 @@ pub mod tls;
 /// The crate's prelude.
 pub mod prelude {
     pub use {
-        crate::{Client, Handshake},
+        crate::{Client, ClientExt as _, ClientWithoutBodyExt as _, Handshake},
         areq_body::prelude::*,
     };
 }
@@ -31,7 +32,8 @@ pub use {
     crate::{
         addr::{Address, IntoHost, InvalidUri},
         alt::Alt,
-        proto::{Client, Error, Handshake, Request, Response, Session},
+        client::{Client, ClientExt, ClientWithoutBodyExt},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     bytes, http,
 };

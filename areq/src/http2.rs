@@ -1,9 +1,10 @@
 use {
     crate::{
         body::prelude::*,
+        client::Client,
         io::Io,
         negotiate::Negotiate,
-        proto::{Client, Error, Handshake, Request, Response, Session},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     bytes::{Buf, Bytes},
     futures_lite::prelude::*,

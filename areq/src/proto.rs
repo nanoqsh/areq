@@ -2,6 +2,7 @@ use {
     crate::{
         addr::Address,
         body::{BoxedLocal, prelude::*},
+        client::Client,
     },
     bytes::Bytes,
     futures_lite::prelude::*,
@@ -17,6 +18,16 @@ pub use crate::proto_rtn::HandshakeWith;
 pub struct Session<I> {
     pub addr: Address,
     pub io: I,
+}
+
+impl<I> Session<I> {
+    #[cfg(feature = "rtn")]
+    pub async fn handshake<H, B>(self, h: H) -> Result<(H::Client, H::Task), Error>
+    where
+        H: HandshakeWith<I, B>,
+    {
+        h.handshake(self).await
+    }
 }
 
 /// The trait to establish a client session over an asynchronous connection.
@@ -86,13 +97,6 @@ impl error::Error for Error {
             Self::UnsupportedProtocol(_) => None,
         }
     }
-}
-
-pub trait Client<B> {
-    type Body: Body<Chunk = Bytes>;
-
-    #[expect(async_fn_in_trait)]
-    async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
 }
 
 #[derive(Debug)]

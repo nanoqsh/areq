@@ -1,7 +1,8 @@
 use {
     crate::{
+        client::Client,
         negotiate::Negotiate,
-        proto::{Client, Error, Handshake, Request, Response, Session},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     areq_body::prelude::*,
     futures_lite::prelude::*,
