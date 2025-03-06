@@ -7,7 +7,7 @@ use {
     bytes::Bytes,
     futures_lite::prelude::*,
     http::{HeaderMap, Method, StatusCode, Uri, Version, request, response},
-    std::{error, fmt, io},
+    std::{convert::Infallible, error, fmt, io},
 };
 
 #[cfg(feature = "rtn")]
@@ -66,6 +66,12 @@ impl From<io::Error> for Error {
 impl From<Error> for io::Error {
     fn from(e: Error) -> Self {
         e.try_into_io().unwrap_or_else(Self::other)
+    }
+}
+
+impl From<Infallible> for Error {
+    fn from(e: Infallible) -> Self {
+        match e {}
     }
 }
 

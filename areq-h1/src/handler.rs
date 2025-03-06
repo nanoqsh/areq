@@ -1,10 +1,10 @@
 use {
     crate::{bytes::InitBytesMut, error::Error},
     bytes::Bytes,
-    core::str,
     futures_lite::prelude::*,
-    http::{Request, Response, Version},
+    http::{Request, Response, Uri, Version},
     httparse::{Header, ParserConfig},
+    std::{io::Write, str},
 };
 
 const KB: usize = 1 << 10;
@@ -131,26 +131,37 @@ impl<I> Handler<I> {
     where
         I: AsyncWrite + Unpin,
     {
-        fn write_to_buf(req: &Request<()>, buf: &mut Vec<u8>) {
-            use std::io::Write;
+        fn write_uri_to_buf(uri: &Uri, buf: &mut Vec<u8>) {
+            let n = buf.len();
+            _ = write!(buf, "{uri}");
 
+            // uri was not written
+            // may happen because of https://github.com/hyperium/http/issues/507
+            if n == buf.len() {
+                buf.push(b'/');
+            }
+        }
+
+        fn write_to_buf(req: &Request<()>, buf: &mut Vec<u8>) {
             let method = req.method();
             let uri = req.uri();
-            let version = req.version();
+
             assert_eq!(
-                version,
+                req.version(),
                 Version::HTTP_11,
                 "only HTTP/1.1 version is supported",
             );
 
-            _ = write!(buf, "{method} {uri} {version:?}\r\n");
+            _ = write!(buf, "{method} ");
+            write_uri_to_buf(uri, buf);
+            buf.extend_from_slice(b" HTTP/1.1\r\n");
             for (name, value) in req.headers() {
                 _ = write!(buf, "{name}: ");
-                _ = Write::write_all(buf, value.as_bytes());
-                _ = write!(buf, "\r\n");
+                buf.extend_from_slice(value.as_bytes());
+                buf.extend_from_slice(b"\r\n");
             }
 
-            _ = write!(buf, "\r\n");
+            buf.extend_from_slice(b"\r\n");
         }
 
         self.write_buf.clear();
@@ -171,8 +182,6 @@ impl<I> Handler<I> {
     where
         I: AsyncWrite + Unpin,
     {
-        use std::io::Write;
-
         self.write_buf.clear();
         let chunk_len = chunk.len();
         _ = write!(&mut self.write_buf, "{chunk_len:X}\r\n");
@@ -476,6 +485,32 @@ mod tests {
         *req.version_mut() = Version::HTTP_11;
         req.headers_mut()
             .append("name", HeaderValue::from_static("value"));
+
+        let mut write = vec![];
+        let mut h = Handler::test(&mut write);
+        future::block_on(h.write_header(&req))?;
+        assert_eq!(write, REQUEST);
+        Ok(())
+    }
+
+    #[test]
+    fn write_head_empty_path() -> Result<(), Error> {
+        use http::{Method, Uri, Version};
+
+        const REQUEST: &[u8] = b"\
+            GET / HTTP/1.1\r\n\
+            \r\n\
+        ";
+
+        let mut req = Request::new(());
+        *req.method_mut() = Method::GET;
+        *req.uri_mut() = Uri::from_static("s://a")
+            .into_parts()
+            .path_and_query
+            .expect("get empty path")
+            .into();
+
+        *req.version_mut() = Version::HTTP_11;
 
         let mut write = vec![];
         let mut h = Handler::test(&mut write);

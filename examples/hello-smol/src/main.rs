@@ -8,13 +8,16 @@ fn main() {
     };
 
     async fn make_request() -> Result<String, Error> {
-        let uri = Uri::from_static("http://127.0.0.1:3001/hello");
+        let uri = Uri::from_static("http://127.0.0.1:3001");
 
         uri.connect()
             .await?
             .handshake(Http1::default())
             .await?
-            .handle(async |mut client| client.get(uri).await?.body().text().await)
+            .handle(async |mut client| {
+                let path = Uri::from_static("/hello");
+                client.get(path).await?.body().text().await
+            })
             .await
     }
 
