@@ -10,7 +10,7 @@ pub mod prelude {
     pub use crate::{Body, BodyExt as _, Hint, IntoBody};
 
     #[cfg(feature = "rtn")]
-    pub use crate::BodyExtRtn as _;
+    pub use crate::SendBodyExt as _;
 }
 
 pub use crate::body::{
@@ -18,4 +18,4 @@ pub use crate::body::{
 };
 
 #[cfg(feature = "rtn")]
-pub use crate::body::{BodyExtRtn, SendBody};
+pub use crate::body::{SendBodyExt, SendBody};

@@ -12,7 +12,7 @@ use {
 };
 
 #[cfg(feature = "rtn")]
-pub use crate::body_rtn::{BodyExtRtn, SendBody};
+pub use crate::body_rtn::{SendBody, SendBodyExt};
 
 /// Type representing the body of an HTTP request/response.
 pub trait Body {
@@ -92,6 +92,7 @@ impl Hint {
     }
 }
 
+/// A non-existent [buffer](Buf) for implementing an empty body.
 pub enum Void {}
 
 impl Buf for Void {
@@ -184,6 +185,22 @@ impl<'str> Body for &'str str {
 }
 
 /// Returns the full body from a [buffer](Buf).
+///
+/// # Example
+///
+/// ```
+/// # futures_lite::future::block_on(async {
+/// use areq_body::{Body, Full};
+///
+/// let mut body = Full::new("hello".as_bytes());
+/// let Some(Ok(chunk)) = body.chunk().await else {
+///     unreachable!();
+/// };
+///
+/// assert_eq!(chunk, "hello".as_bytes());
+/// assert!(body.chunk().await.is_none());
+/// # });
+/// ```
 pub struct Full<B>(Option<B>);
 
 impl<B> Full<B> {
@@ -218,6 +235,26 @@ where
     }
 }
 
+/// Defers the full body from a [future](Future).
+///
+/// # Example
+///
+/// ```
+/// # futures_lite::future::block_on(async {
+/// use areq_body::{Body, Deferred};
+///
+/// let mut body = Deferred::new(Box::pin(async {
+///     Ok("hello".as_bytes())
+/// }));
+///
+/// let Some(Ok(chunk)) = body.chunk().await else {
+///     unreachable!();
+/// };
+///
+/// assert_eq!(chunk, "hello".as_bytes());
+/// assert!(body.chunk().await.is_none());
+/// # });
+/// ```
 pub struct Deferred<F>(Option<F>);
 
 impl<F> Deferred<F> {
@@ -258,6 +295,35 @@ where
     }
 }
 
+/// The chunked body from a [stream](Stream).
+///
+/// # Example
+///
+/// ```
+/// # futures_lite::future::block_on(async {
+/// use {
+///     areq_body::{Body, Chunked},
+///     futures_lite::stream,
+/// };
+///
+/// let mut body = Chunked(
+///     stream::iter(["h", "i"].map(|s| Ok(s.as_bytes())))
+/// );
+///
+/// let Some(Ok(chunk)) = body.chunk().await else {
+///     unreachable!();
+/// };
+///
+/// assert_eq!(chunk, "h".as_bytes());
+///
+/// let Some(Ok(chunk)) = body.chunk().await else {
+///     unreachable!();
+/// };
+///
+/// assert_eq!(chunk, "i".as_bytes());
+/// assert!(body.chunk().await.is_none());
+/// # });
+/// ```
 pub struct Chunked<S>(pub S);
 
 impl<S, I> Body for Chunked<S>
@@ -281,6 +347,7 @@ where
     }
 }
 
+/// A trait for converting into a [body](Body).
 pub trait IntoBody: Sized {
     type Chunk: Buf;
     type Body: Body<Chunk = Self::Chunk>;
@@ -301,6 +368,70 @@ where
     }
 }
 
+/// The poll based [body](Body) trait.
+///
+/// This trait is typically used to represent something
+/// similar to `dyn Body`, since the [`Body`] trait itself
+/// is not compatible with `dyn`. Instead, you can convert
+/// any body into [`PollBody`] using
+/// [`into_poll_body`](BodyExt::into_poll_body).
+///
+/// # Example
+///
+/// ```
+/// # futures_lite::future::block_on(async {
+/// use {
+///     areq_body::{Body, BodyExt, PollBody},
+///     std::future,
+/// };
+///
+/// let mut poll_body = Box::pin("uwu".into_poll_body());
+/// let body_future = future::poll_fn(|cx| poll_body.as_mut().poll_chunk(cx));
+/// let Some(Ok(chunk)) = body_future.await else {
+///     unreachable!();
+/// };
+///
+/// assert_eq!(chunk, "uwu".as_bytes());
+/// # });
+/// ```
+///
+/// A pinned `PollBody` implements the `Body` itself.
+/// So the example above can be simplified:
+///
+/// ```
+/// # futures_lite::future::block_on(async {
+/// use areq_body::{Body, BodyExt};
+///
+/// let mut poll_body = Box::pin("uwu".into_poll_body());
+/// let Some(Ok(chunk)) = poll_body.chunk().await else {
+///     unreachable!();
+/// };
+///
+/// assert_eq!(chunk, "uwu".as_bytes());
+/// # });
+/// ```
+///
+/// # Dyn Compatibility
+///
+/// Since `PollBody` is compatible with `dyn`, it allows erasing static `Body` types.
+/// To achieve this, you can use a helper method [`boxed_local`](BodyExt::boxed_local),
+/// which boxes any body into [`Pin<Box<dyn PollBody + '_>>`](BoxedLocal).
+///
+/// ```
+/// use areq_body::{Body, BodyExt};
+///
+/// enum Source<'src> {
+///     Binary(&'src [u8]),
+///     String(&'src str),
+/// }
+///
+/// fn body_from_source(src: Source<'_>) -> impl Body {
+///     match src {
+///         Source::Binary(s) => s.boxed_local(),
+///         Source::String(s) => s.boxed_local(),
+///     }
+/// }
+/// ```
 pub trait PollBody {
     type Chunk: Buf;
 
@@ -329,9 +460,13 @@ where
     }
 }
 
+/// Alias for a boxed [body](PollBody).
 pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
+
+/// Alias for a boxed thread-safe [body](PollBody).
 pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 
+/// Extension methods for a [body](Body).
 pub trait BodyExt: IntoBody {
     #[inline]
     async fn take_full(self) -> Result<Option<Self::Chunk>, Error> {

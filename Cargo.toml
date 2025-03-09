@@ -1,6 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["areq", "areq-body", "areq-h1", "areq-smol", "examples/*", "serve"]
+members = [
+    "areq",
+    "areq-body",
+    "areq-h1",
+    "areq-smol",
+    "areq-tokio",
+    "examples/*",
+    "serve",
+]
 
 [workspace.package]
 version = "0.1.0-alpha2"
@@ -22,6 +30,7 @@ areq = { version = "=0.1.0-alpha2", path = "areq" }
 areq-body = { version = "=0.1.0-alpha2", path = "areq-body" }
 areq-h1 = { version = "=0.1.0-alpha2", path = "areq-h1" }
 areq-smol = { version = "=0.1.0-alpha2", path = "areq-smol" }
+areq-tokio = { version = "=0.1.0-alpha2", path = "areq-tokio" }
 async-channel = "2.3"
 async-executor = "1.13"
 async-net = "2.0"

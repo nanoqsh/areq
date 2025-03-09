@@ -1,7 +1,7 @@
 [package]
-name = "areq-smol"
-description = "Async HTTP requests for smol runtime"
-documentation = "https://docs.rs/areq-smol"
+name = "areq-tokio"
+description = "Async HTTP requests for tokio runtime"
+documentation = "https://docs.rs/areq-tokio"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,13 +16,10 @@ http1 = ["areq/http1"]
 http2 = ["areq/http2"]
 tls = ["areq/tls"]
 rtn = ["areq/rtn"]
-executor = ["async-executor"]
 
 [dependencies]
 areq.workspace = true
-async-net.workspace = true
-async-executor = { workspace = true, optional = true }
-futures-lite = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["net"] }
 url.workspace = true
 
 [lints]

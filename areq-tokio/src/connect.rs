@@ -1,6 +1,6 @@
 use {
     areq::{Address, Error, HandshakeWith, Session},
-    async_net::TcpStream,
+    tokio::net::TcpStream,
     url::Host,
 };
 
