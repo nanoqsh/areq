@@ -32,8 +32,7 @@ impl Address {
         let secure = scheme == &Scheme::HTTPS;
         let port = authority
             .port()
-            .map(|port| port.as_u16())
-            .unwrap_or(default_port(secure));
+            .map_or(default_port(secure), |port| port.as_u16());
 
         Ok(Self { host, port, secure })
     }
@@ -91,6 +90,14 @@ impl TryFrom<&Uri> for Address {
 
     fn try_from(uri: &Uri) -> Result<Self, Self::Error> {
         Self::from_uri(uri)
+    }
+}
+
+impl TryFrom<Uri> for Address {
+    type Error = InvalidUri;
+
+    fn try_from(uri: Uri) -> Result<Self, Self::Error> {
+        Self::from_uri(&uri)
     }
 }
 

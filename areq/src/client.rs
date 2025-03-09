@@ -8,7 +8,6 @@ use {
 pub trait Client<B> {
     type Body: Body<Chunk = Bytes>;
 
-    #[expect(async_fn_in_trait)]
     async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
 }
 

@@ -25,7 +25,6 @@ pub trait Body {
     /// If an I/O error occurs, it is returned as `Some(Err(e))`.
     /// When the entire body has been received, a returned `None`
     /// indicates the end of the data stream.
-    #[expect(async_fn_in_trait)]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
 
     /// Returns a size [hint](Hint) for the body.
@@ -92,6 +91,7 @@ where
         (**self).chunk().await
     }
 
+    #[inline]
     fn size_hint(&self) -> Hint {
         (**self).size_hint()
     }
@@ -302,7 +302,6 @@ pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 
 pub trait BodyExt: IntoBody {
-    #[expect(async_fn_in_trait)]
     #[inline]
     async fn take_full(self) -> Result<Option<Self::Chunk>, Error> {
         let mut body = self.into_body();
@@ -331,7 +330,6 @@ pub trait BodyExt: IntoBody {
         chunk.transpose()
     }
 
-    #[expect(async_fn_in_trait)]
     #[inline]
     async fn text(self) -> Result<String, Error>
     where
@@ -347,7 +345,6 @@ pub trait BodyExt: IntoBody {
         Ok(s)
     }
 
-    #[expect(async_fn_in_trait)]
     #[inline]
     async fn bytes(self) -> Result<Bytes, Error>
     where
@@ -357,7 +354,6 @@ pub trait BodyExt: IntoBody {
         Ok(bytes_mut.freeze())
     }
 
-    #[expect(async_fn_in_trait)]
     #[inline]
     async fn bytes_mut(self) -> Result<BytesMut, Error>
     where

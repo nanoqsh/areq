@@ -20,23 +20,12 @@ pub struct Session<I> {
     pub io: I,
 }
 
-impl<I> Session<I> {
-    #[cfg(feature = "rtn")]
-    pub async fn handshake<H, B>(self, h: H) -> Result<(H::Client, H::Task), Error>
-    where
-        H: HandshakeWith<I, B>,
-    {
-        h.handshake(self).await
-    }
-}
-
 /// The trait to establish a client session over an asynchronous connection.
 pub trait Handshake<I, B> {
     /// The client type returned by the handshake process.
     type Client: Client<B>;
 
     /// Perform a handshake to establish a client session.
-    #[expect(async_fn_in_trait)]
     async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error>;
 }
 

@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "rtn", feature(return_type_notation))]
+#![cfg_attr(not(feature = "rtn"), allow(async_fn_in_trait))]
 
 mod body;
 #[cfg(feature = "rtn")]

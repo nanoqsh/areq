@@ -40,7 +40,7 @@ async fn fetch(uri: Uri) -> Result<(), Error> {
     };
 
     let host = uri.host().expect("the url should have a host");
-    let port = uri.port().map(|port| port.as_u16()).unwrap_or(80);
+    let port = uri.port().map_or(80, |port| port.as_u16());
     let tcp = TcpStream::connect((host, port)).await?;
 
     let (reqs, conn) = Config::default().handshake(tcp);

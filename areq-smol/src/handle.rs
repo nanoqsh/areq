@@ -1,8 +1,7 @@
-use {
-    areq::{HandshakeWith, Session},
-    futures_lite::future,
-    std::io::Error,
-};
+use {areq::Session, futures_lite::future, std::io::Error};
+
+#[cfg(feature = "rtn")]
+use areq::HandshakeWith;
 
 pub trait Handle<C, U, F> {
     #[expect(async_fn_in_trait)]
@@ -29,6 +28,7 @@ where
 }
 
 /// Asserts the handle is `Send` if the client and task of `Handshake` are also `Send`.
+#[cfg(feature = "rtn")]
 fn _handle_is_send<H, I, B>(h: H, se: Session<I>)
 where
     H: HandshakeWith<I, B, Client: Send, Task: Send>,
