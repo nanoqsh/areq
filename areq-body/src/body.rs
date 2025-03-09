@@ -21,8 +21,8 @@ pub trait Body {
 
     /// Asynchronously retrieves a body data chunk.
     ///
-    /// Returns `Some(Ok(c))` when data is successfully received.
-    /// If an I/O error occurs, it is returned as `Some(Err(e))`.
+    /// Returns `Some(Ok(_))` when data is successfully received.
+    /// If an I/O error occurs, it is returned as `Some(Err(_))`.
     /// When the entire body has been received, a returned `None`
     /// indicates the end of the data stream.
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>>;
@@ -32,20 +32,50 @@ pub trait Body {
 }
 
 /// Body size hint.
+///
+/// Used to indicate a kind and size of the request/response body.
 #[derive(Clone, Copy, Debug)]
 pub enum Hint {
-    Full { len: Option<u64> },
-    Chunked { end: bool },
+    /// The body is empty.
+    Empty,
+
+    /// The entire body is returned in a single
+    /// [`chunk`](Body::chunk) call.
+    ///
+    /// For this variant, an HTTP/1.1 client sets the
+    /// `Content-Length` header for the request.
+    Full {
+        /// Specifies the body size in bytes, if possible.
+        /// If the size cannot be determined in advance, this
+        /// field must be `None`.
+        len: Option<u64>,
+    },
+
+    /// The body is chunked and received through sequential
+    /// [`chunk`](Body::chunk) calls.
+    ///
+    /// For this variant, an HTTP/1.1 client sets the
+    /// `Transfer-Encoding: chunked` header for the request.
+    Chunked {
+        /// Indicates the end of the body stream.
+        end: bool,
+    },
 }
 
 impl Hint {
-    /// Returns `true` if the hint is [`Full`]
+    /// Returns `true` if the hint is [`Empty`](Hint::Empty).
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        matches!(self, Self::Empty)
+    }
+
+    /// Returns `true` if the hint is [`Full`](Hint::Full).
     #[inline]
     pub fn is_full(&self) -> bool {
         matches!(self, Self::Full { .. })
     }
 
-    /// Returns `true` if the hint is [`Chunked`]
+    /// Returns `true` if the hint is [`Chunked`](Hint::Chunked).
     #[inline]
     pub fn is_chunked(&self) -> bool {
         matches!(self, Self::Chunked { .. })
@@ -55,6 +85,7 @@ impl Hint {
     #[inline]
     pub fn end(self) -> bool {
         match self {
+            Self::Empty => true,
             Self::Full { len } => len == Some(0),
             Self::Chunked { end } => end,
         }
@@ -107,7 +138,7 @@ impl Body for () {
 
     #[inline]
     fn size_hint(&self) -> Hint {
-        Hint::Full { len: Some(0) }
+        Hint::Empty
     }
 }
 

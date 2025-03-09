@@ -1,3 +1,5 @@
+//! The http/1.1 client.
+
 use {
     crate::{
         body::prelude::*,

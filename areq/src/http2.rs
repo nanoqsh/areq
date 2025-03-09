@@ -1,3 +1,5 @@
+//! The http/2 client.
+
 use {
     crate::{
         body::prelude::*,
@@ -130,6 +132,7 @@ where
             }
 
             match size {
+                Hint::Empty => unreachable!(),
                 Hint::Full { .. } => {
                     let chunk = body.take_full().await?;
                     send_body.send_data(chunk.map_or(Flow::End, Flow::Next), true)?;

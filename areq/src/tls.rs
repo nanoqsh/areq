@@ -1,3 +1,5 @@
+//! The http client over TLS.
+
 use {
     crate::proto::{Error, Handshake, Session},
     futures_lite::prelude::*,

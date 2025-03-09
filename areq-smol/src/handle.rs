@@ -33,7 +33,7 @@ fn _handle_is_send<H, I, B>(h: H, se: Session<I>)
 where
     H: HandshakeWith<I, B, Client: Send, Task: Send>,
 {
-    fn is_send<S>(s: S) -> S
+    fn assert_send<S>(s: S) -> S
     where
         S: Send,
     {
@@ -44,8 +44,8 @@ where
         let p = h.handshake(se).await.expect("comptime assertion");
 
         // Also the callback must be `Send`
-        let callback = is_send(async |_| Ok(()));
+        let callback = assert_send(async |_| Ok(()));
 
-        _ = is_send(p.handle(callback));
+        _ = assert_send(p.handle(callback));
     };
 }

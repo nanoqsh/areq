@@ -87,6 +87,7 @@ where
             let mut head = Request::from_parts(parts, ());
 
             match body.size_hint() {
+                Hint::Empty => conn.io.write_header(&head).await?,
                 Hint::Full { .. } => {
                     let full = body.take_full().await?;
 
@@ -250,7 +251,7 @@ mod tests {
 
     #[test]
     fn roundtrip_empty() -> Result<(), Error> {
-        const REQUEST: [&str; 3] = ["GET / HTTP/1.1\r\n", "content-length: 0\r\n", "\r\n"];
+        const REQUEST: [&str; 2] = ["GET / HTTP/1.1\r\n", "\r\n"];
         const RESPONSE: [&str; 3] = ["HTTP/1.1 200 OK\r\n", "content-length: 0\r\n", "\r\n"];
 
         let read = test::parts(RESPONSE.map(str::as_bytes));

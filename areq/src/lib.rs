@@ -25,6 +25,7 @@ pub mod prelude {
     };
 }
 
+/// Body types and traits.
 pub mod body {
     pub use areq_body::*;
 }

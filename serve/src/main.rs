@@ -12,6 +12,7 @@ use {
     hyper::{
         body::Frame,
         header::{self, HeaderValue},
+        http,
         server::conn::{http1, http2},
         service,
     },
@@ -166,7 +167,13 @@ where
         let io = pin::pin!(FuturesIo::new(io));
         http1::Builder::new()
             .timer(SmolTimer::new())
-            .serve_connection(io, service::service_fn(|req| self.0.clone().oneshot(req)))
+            .serve_connection(
+                io,
+                service::service_fn(|req| {
+                    print_request(&req);
+                    self.0.clone().oneshot(req)
+                }),
+            )
             .await
             .map_err(Error::other)
     }
@@ -184,7 +191,13 @@ where
         let io = pin::pin!(FuturesIo::new(io));
         http2::Builder::new(SmolExecutor::new(ex))
             .timer(SmolTimer::new())
-            .serve_connection(io, service::service_fn(|req| self.0.clone().oneshot(req)))
+            .serve_connection(
+                io,
+                service::service_fn(|req| {
+                    print_request(&req);
+                    self.0.clone().oneshot(req)
+                }),
+            )
             .await
             .map_err(Error::other)
     }
@@ -225,4 +238,24 @@ fn load_tls_config() -> Result<ServerConfig, Error> {
         .extend(["h2", "http/1.1"].map(Vec::from));
 
     Ok(conf)
+}
+
+fn print_request<B>(req: &http::Request<B>) {
+    use std::io::{self, Write};
+
+    let mut stdout = io::stdout();
+
+    let method = req.method();
+    let uri = req.uri();
+    let version = req.version();
+    _ = writeln!(&mut stdout, "{method} {uri} {version:?}");
+
+    for (name, val) in req.headers() {
+        _ = stdout.write_all(name.as_ref());
+        _ = stdout.write_all(b": ");
+        _ = stdout.write_all(val.as_bytes());
+        _ = stdout.write_all(b"\n");
+    }
+
+    _ = stdout.flush();
 }
