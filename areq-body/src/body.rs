@@ -4,6 +4,7 @@ use {
     std::{
         future,
         io::Error,
+        marker::PhantomData,
         mem,
         ops::DerefMut,
         pin::Pin,
@@ -206,7 +207,7 @@ pub struct Full<B>(Option<B>);
 impl<B> Full<B> {
     /// Creates a body from the given [buffer](Buf).
     #[inline]
-    pub fn new(body: B) -> Self {
+    pub const fn new(body: B) -> Self {
         Self(Some(body))
     }
 }
@@ -463,8 +464,53 @@ where
 /// Alias for a boxed [body](PollBody).
 pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 
+impl<'body, C> Default for BoxedLocal<'body, C>
+where
+    C: Buf + 'body,
+{
+    fn default() -> Self {
+        Box::pin(empty())
+    }
+}
+
 /// Alias for a boxed thread-safe [body](PollBody).
 pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
+
+impl<'body, C> Default for Boxed<'body, C>
+where
+    C: Buf + Send + 'body,
+{
+    fn default() -> Self {
+        Box::pin(empty())
+    }
+}
+
+fn empty<C>() -> impl PollBody<Chunk = C>
+where
+    C: Buf,
+{
+    struct Empty<C>(PhantomData<C>);
+
+    impl<C> PollBody for Empty<C>
+    where
+        C: Buf,
+    {
+        type Chunk = C;
+
+        fn poll_chunk(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+        ) -> Poll<Option<Result<Self::Chunk, Error>>> {
+            Poll::Ready(None)
+        }
+
+        fn size_hint(&self) -> Hint {
+            Hint::Empty
+        }
+    }
+
+    Empty(PhantomData)
+}
 
 /// Extension methods for a [body](Body).
 pub trait BodyExt: IntoBody {

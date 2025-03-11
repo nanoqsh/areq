@@ -4,7 +4,7 @@ version = "0.0.0"
 edition.workspace = true
 
 [dependencies]
-areq-tokio = { workspace = true, features = ["http1", "rtn"] }
+areq-tokio = { workspace = true, features = ["http1"] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 
 [lints]

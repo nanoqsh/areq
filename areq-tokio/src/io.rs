@@ -10,6 +10,8 @@ use {
 
 pin_project_lite::pin_project! {
     /// Async IO adapter.
+    ///
+    /// Converts tokio specific IO into standard IO.
     pub struct Io<I> {
         #[pin]
         io: I,
@@ -17,8 +19,16 @@ pin_project_lite::pin_project! {
 }
 
 impl<I> Io<I> {
+    /// Creates a new adapter instance.
+    #[inline]
     pub fn new(io: I) -> Self {
         Self { io }
+    }
+
+    /// Returns the inner IO instance.
+    #[inline]
+    pub fn into_inner(self) -> I {
+        self.io
     }
 }
 
@@ -26,6 +36,7 @@ impl<I> AsyncRead for Io<I>
 where
     I: io::AsyncRead,
 {
+    #[inline]
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -43,6 +54,7 @@ impl<I> AsyncWrite for Io<I>
 where
     I: io::AsyncWrite,
 {
+    #[inline]
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -51,10 +63,12 @@ where
         self.project().io.poll_write(cx, buf)
     }
 
+    #[inline]
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         self.project().io.poll_flush(cx)
     }
 
+    #[inline]
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         self.project().io.poll_shutdown(cx)
     }

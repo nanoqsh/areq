@@ -5,11 +5,43 @@ use {
     url::Host,
 };
 
+/// Extension trait to connect tokio [TCP stream](TcpStream).
+///
+/// If a connection is successful, the [`connect`](Connect::connect) method
+/// returns an HTTP client and a future that needs to be polled in background
+/// while the client sends requests and receives responses.
+/// The simplest way to do this is to call
+/// [`connect_spawned`](Connect::connect_spawned).
+///
+/// # Example
+/// ```
+/// use {
+///     areq_tokio::{areq::{http::Uri, http1::Http1}, prelude::*},
+///     std::io::Error,
+/// };
+///
+/// async fn request() -> Result<String, Error> {
+///     let addr = Uri::from_static("http://127.0.0.1:3001");
+///     let path = Uri::from_static("/hello");
+///
+///     // Establish a connection to the address
+///     let (mut client, conn) = Http1::default().connect(addr).await?;
+///
+///     // Spawn the task in background
+///     tokio::spawn(conn);
+///
+///     // Now you can work with the client
+///     // The background task will complete once the client is dropped
+///     client.get(path).await?.body().text().await
+/// }
+/// ```
 pub trait Connect<A, B>: HandshakeWith<Io<TcpStream>, B> {
-    #[expect(async_fn_in_trait)]
+    /// Connects to the given address.
     async fn connect(self, addr: A) -> Result<(Self::Client, Self::Task), Error>;
 
-    #[expect(async_fn_in_trait)]
+    /// Connects to the given address and spawns the task in tokio executor.
+    ///
+    /// If a connection is successful, it returns an HTTP client.
     async fn connect_spawned(self, addr: A) -> Result<Self::Client, Error>;
 }
 
@@ -18,6 +50,7 @@ where
     A: TryInto<Address, Error: Into<Error>>,
     H: HandshakeWith<Io<TcpStream>, B, Task: Send + 'static>,
 {
+    #[inline]
     async fn connect(self, addr: A) -> Result<(Self::Client, Self::Task), Error> {
         let addr = addr.try_into().map_err(A::Error::into)?;
         let io = match &addr.host {
@@ -34,6 +67,7 @@ where
         self.handshake(se).await
     }
 
+    #[inline]
     async fn connect_spawned(self, addr: A) -> Result<Self::Client, Error> {
         let (client, conn) = self.connect(addr).await?;
         tokio::spawn(conn);

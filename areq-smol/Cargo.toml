@@ -2,6 +2,7 @@
 name = "areq-smol"
 description = "Async HTTP requests for smol runtime"
 documentation = "https://docs.rs/areq-smol"
+readme = "areq-smol/README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,13 +16,15 @@ rust-version.workspace = true
 http1 = ["areq/http1"]
 http2 = ["areq/http2"]
 tls = ["areq/tls"]
-rtn = ["areq/rtn"]
 
 [dependencies]
-areq.workspace = true
+areq = { workspace = true, features = ["rtn"] }
 async-net.workspace = true
 futures-lite = { workspace = true, features = ["std"] }
 url.workspace = true
+
+[dev-dependencies]
+async-executor.workspace = true
 
 [lints]
 workspace = true

@@ -17,6 +17,7 @@ pin_project_lite::pin_project! {
 }
 
 impl<I> Io<I> {
+    #[inline]
     pub fn new(io: I) -> Self {
         Self { io }
     }

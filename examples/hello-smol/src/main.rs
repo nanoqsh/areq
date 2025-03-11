@@ -5,29 +5,27 @@ fn main() {
             prelude::*,
         },
         async_executor::Executor,
-        std::{env, io::Error},
+        std::io::Error,
     };
 
     async fn request() -> Result<String, Error> {
-        let uri = Uri::from_static("http://127.0.0.1:3001");
+        let addr = Uri::from_static("http://127.0.0.1:3001");
+        let path = Uri::from_static("/hello");
 
         Http1::default()
-            .connect(uri)
+            .connect(addr)
             .await?
-            .handle(async |mut client| {
-                let path = Uri::from_static("/hello");
-                client.get(path).await?.body().text().await
-            })
+            .handle(async |mut client| client.get(path).await?.body().text().await)
             .await
     }
 
     async fn request_in_executor(ex: &Executor<'_>) -> Result<String, Error> {
-        let uri = Uri::from_static("http://127.0.0.1:3001");
+        let addr = Uri::from_static("http://127.0.0.1:3001");
+        let path = Uri::from_static("/hello");
 
-        let (mut client, conn) = Http1::default().connect(uri).await?;
+        let (mut client, conn) = Http1::default().connect(addr).await?;
         ex.spawn(conn).detach();
 
-        let path = Uri::from_static("/hello");
         client.get(path).await?.body().text().await
     }
 
@@ -42,7 +40,7 @@ fn main() {
         }
     }
 
-    let mode = env::args().nth(1);
+    let mode = std::env::args().nth(1);
     let mode = mode.as_deref().unwrap_or("handle");
     match futures_lite::future::block_on(run(mode)) {
         Ok(text) => println!("{text}"),

@@ -2,6 +2,7 @@
 name = "areq-tokio"
 description = "Async HTTP requests for tokio runtime"
 documentation = "https://docs.rs/areq-tokio"
+readme = "areq-tokio/README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,10 +16,9 @@ rust-version.workspace = true
 http1 = ["areq/http1"]
 http2 = ["areq/http2"]
 tls = ["areq/tls"]
-rtn = ["areq/rtn"]
 
 [dependencies]
-areq.workspace = true
+areq = { workspace = true, features = ["rtn"] }
 futures-lite = { workspace = true, features = ["std"] }
 pin-project-lite.workspace = true
 tokio = { workspace = true, features = ["net"] }
