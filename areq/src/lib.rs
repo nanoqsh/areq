@@ -35,7 +35,7 @@ pub use {
         addr::{Address, IntoHost, InvalidUri},
         alt::Alt,
         client::{Client, ClientExt, ClientWithoutBodyExt},
-        proto::{Error, Handshake, Request, Response, Session},
+        proto::{Error, Handshake, Request, Response, Session, Task},
     },
     bytes, http,
 };

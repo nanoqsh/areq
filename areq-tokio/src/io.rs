@@ -10,7 +10,7 @@ use {
 
 pin_project_lite::pin_project! {
     /// Async IO adapter.
-    pub(crate) struct Io<I> {
+    pub struct Io<I> {
         #[pin]
         io: I,
     }
@@ -22,32 +22,27 @@ impl<I> Io<I> {
     }
 }
 
-impl<I> io::AsyncRead for Io<I>
+impl<I> AsyncRead for Io<I>
 where
-    I: AsyncRead,
+    I: io::AsyncRead,
 {
-    #[inline]
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut io::ReadBuf<'_>,
-    ) -> Poll<Result<(), Error>> {
-        let bytes = buf.initialize_unfilled();
-        match self.project().io.poll_read(cx, bytes)? {
-            Poll::Ready(n) => {
-                buf.advance(n);
-                Poll::Ready(Ok(()))
-            }
+        buf: &mut [u8],
+    ) -> Poll<Result<usize, Error>> {
+        let mut buf = io::ReadBuf::new(buf);
+        match self.project().io.poll_read(cx, &mut buf)? {
+            Poll::Ready(()) => Poll::Ready(Ok(buf.filled().len())),
             Poll::Pending => Poll::Pending,
         }
     }
 }
 
-impl<I> io::AsyncWrite for Io<I>
+impl<I> AsyncWrite for Io<I>
 where
-    I: AsyncWrite,
+    I: io::AsyncWrite,
 {
-    #[inline]
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -56,24 +51,18 @@ where
         self.project().io.poll_write(cx, buf)
     }
 
-    #[inline]
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         self.project().io.poll_flush(cx)
     }
 
-    #[inline]
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        self.project().io.poll_close(cx)
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        self.project().io.poll_shutdown(cx)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use {
-        super::*,
-        futures_lite::future,
-        tokio::io::{AsyncReadExt, AsyncWriteExt},
-    };
+    use {super::*, futures_lite::future};
 
     #[test]
     fn read() -> Result<(), Error> {

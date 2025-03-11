@@ -5,7 +5,7 @@ use {
         body::prelude::*,
         client::Client,
         negotiate::Negotiate,
-        proto::{Error, Handshake, Request, Response, Session},
+        proto::{Error, Handshake, Request, Response, Session, Task},
     },
     areq_h1::Config,
     futures_lite::prelude::*,
@@ -28,7 +28,7 @@ where
 {
     type Client = H1<B>;
 
-    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error> {
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error> {
         let Session { addr, io } = se;
         let (reqs, conn) = self.conf.handshake(io);
         let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;

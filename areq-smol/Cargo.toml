@@ -16,12 +16,10 @@ http1 = ["areq/http1"]
 http2 = ["areq/http2"]
 tls = ["areq/tls"]
 rtn = ["areq/rtn"]
-executor = ["async-executor"]
 
 [dependencies]
 areq.workspace = true
 async-net.workspace = true
-async-executor = { workspace = true, optional = true }
 futures-lite = { workspace = true, features = ["std"] }
 url.workspace = true
 

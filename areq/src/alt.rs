@@ -2,7 +2,7 @@ use {
     crate::{
         client::Client,
         negotiate::Negotiate,
-        proto::{Error, Handshake, Request, Response, Session},
+        proto::{Error, Handshake, Request, Response, Session, Task},
     },
     areq_body::prelude::*,
     futures_lite::prelude::*,
@@ -44,7 +44,7 @@ where
 {
     type Client = Alt<L::Client, R::Client>;
 
-    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Future), Error> {
+    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error> {
         let (client, conn) = match self {
             Self::Lhs { l } => {
                 let (client, conn) = l.handshake(se).await?;
@@ -56,9 +56,7 @@ where
             }
         };
 
-        Ok((client, async {
-            conn.await;
-        }))
+        Ok((client, conn))
     }
 }
 
@@ -102,14 +100,14 @@ where
 impl<L, R> Future for Alt<L, R>
 where
     L: Future,
-    R: Future,
+    R: Future<Output = L::Output>,
 {
-    type Output = Alt<L::Output, R::Output>;
+    type Output = L::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project() {
-            Pinned::Lhs { l } => l.poll(cx).map(Alt::lhs),
-            Pinned::Rhs { r } => r.poll(cx).map(Alt::rhs),
+            Pinned::Lhs { l } => l.poll(cx),
+            Pinned::Rhs { r } => r.poll(cx),
         }
     }
 }

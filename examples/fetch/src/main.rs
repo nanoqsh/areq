@@ -1,8 +1,5 @@
 use {
-    areq::{
-        http::{Method, Uri},
-        prelude::*,
-    },
+    areq::{http::Uri, prelude::*},
     async_net::TcpStream,
     futures_lite::{future, prelude::*},
     std::{
@@ -51,7 +48,7 @@ async fn fetch(proto: &str, uri: Uri) -> Result<(), Error> {
             get(tls, uri).await
         }
         unknown => {
-            eprintln!("unknown http protocol: {unknown}");
+            eprintln!("unknown protocol: {unknown}");
             Ok(())
         }
     }
@@ -62,7 +59,7 @@ where
     H: Handshake<TcpStream, ()>,
 {
     use {
-        areq::{Address, Request, Session},
+        areq::{Address, Session},
         async_net::TcpStream,
         futures_lite::io::BufReader,
     };
@@ -78,11 +75,10 @@ where
     };
 
     let send_request = async move {
-        // create new request with empty body
-        let req = Request::new(Method::GET, uri, ());
+        // create new GET request with empty body
+        let res = client.get(uri).await?;
 
         // print response head
-        let res = client.send(req).await?;
         let version = res.version();
         let status = res.status();
         println!("{version:?} {status}");

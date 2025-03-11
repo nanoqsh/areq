@@ -437,7 +437,7 @@ mod tests {
 
         let mut remaining = 4;
         let body = future::block_on(h.read_body(&mut remaining))?;
-        assert_eq!(body, b"body"[..]);
+        assert_eq!(body, "body".as_bytes());
         assert_eq!(remaining, 0);
         assert!(h.read_buf.is_empty());
         Ok(())
@@ -448,15 +448,15 @@ mod tests {
         use crate::test;
 
         let cases = [
-            (&["_", "_", "A"][..], "A", "__A"),
-            (&["_", "_", "A", "_"][..], "A", "__A"),
-            (&["A", "B"][..], "AB", "AB"),
-            (&["A", "B", "C"][..], "ABC", "ABC"),
-            (&["___A", "B", "___"][..], "AB", "___AB"),
-            (&["___A", "B", "C___"][..], "ABC", "___ABC"),
-            (&["_", "__", "_A", "B", "C___"][..], "ABC", "____ABC"),
-            (&["_", "__", "_A", "B", "C___"][..], "A", "____A"),
-            (&["AA", "_BA_", "_A", "B", "C___"][..], "AB", "AA_BA__AB"),
+            (["_", "_", "A"].as_slice(), "A", "__A"),
+            (&["_", "_", "A", "_"], "A", "__A"),
+            (&["A", "B"], "AB", "AB"),
+            (&["A", "B", "C"], "ABC", "ABC"),
+            (&["___A", "B", "___"], "AB", "___AB"),
+            (&["___A", "B", "C___"], "ABC", "___ABC"),
+            (&["_", "__", "_A", "B", "C___"], "ABC", "____ABC"),
+            (&["_", "__", "_A", "B", "C___"], "A", "____A"),
+            (&["AA", "_BA_", "_A", "B", "C___"], "AB", "AA_BA__AB"),
         ];
 
         for (reads, until, actual) in cases {

@@ -67,7 +67,7 @@ fn serve() -> Result<(), Error> {
                 buf.extend_from_slice(&frame);
             }
 
-            let payload = serde_json::from_reader(&buf[..])?;
+            let payload = serde_json::from_reader(buf.as_slice())?;
             out.push(payload);
         }
 

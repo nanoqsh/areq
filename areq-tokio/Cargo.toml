@@ -19,6 +19,8 @@ rtn = ["areq/rtn"]
 
 [dependencies]
 areq.workspace = true
+futures-lite = { workspace = true, features = ["std"] }
+pin-project-lite.workspace = true
 tokio = { workspace = true, features = ["net"] }
 url.workspace = true
 
