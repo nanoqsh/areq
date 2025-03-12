@@ -24,7 +24,7 @@ use {
 ///     std::io::Error,
 /// };
 ///
-/// async fn request(ex: &Executor<'_>) -> Result<String, Error> {
+/// async fn get(ex: &Executor<'_>) -> Result<String, Error> {
 ///     let addr = Uri::from_static("http://127.0.0.1:3001");
 ///     let path = Uri::from_static("/hello");
 ///
@@ -50,7 +50,7 @@ use {
 ///     std::io::Error,
 /// };
 ///
-/// async fn request() -> Result<String, Error> {
+/// async fn get() -> Result<String, Error> {
 ///     let addr = Uri::from_static("http://127.0.0.1:3001");
 ///     let path = Uri::from_static("/hello");
 ///

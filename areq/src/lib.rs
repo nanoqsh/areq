@@ -20,7 +20,7 @@ pub mod tls;
 /// The crate's prelude.
 pub mod prelude {
     pub use {
-        crate::{Client, ClientExt as _, ClientWithoutBodyExt as _, Handshake},
+        crate::{Client, ClientExt as _, Handshake},
         areq_body::prelude::*,
     };
 }
@@ -34,7 +34,7 @@ pub use {
     crate::{
         addr::{Address, IntoHost, InvalidUri},
         alt::Alt,
-        client::{Client, ClientExt, ClientWithoutBodyExt},
+        client::{Client, ClientExt},
         proto::{Error, Handshake, Request, Response, Session, Task},
     },
     bytes, http,

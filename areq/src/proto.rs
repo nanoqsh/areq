@@ -4,7 +4,6 @@ use {
         body::{BoxedLocal, prelude::*},
         client::Client,
     },
-    bytes::Bytes,
     futures_lite::prelude::*,
     http::{HeaderMap, Method, StatusCode, Uri, Version, request, response},
     std::{convert::Infallible, error, fmt, io},
@@ -164,7 +163,7 @@ impl<B> From<http::Request<B>> for Request<B> {
 }
 
 #[derive(Debug)]
-pub struct Response<B = BoxedLocal<'static, Bytes>> {
+pub struct Response<B = BoxedLocal<'static>> {
     head: response::Parts,
     body: B,
 }

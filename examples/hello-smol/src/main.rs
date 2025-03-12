@@ -8,7 +8,7 @@ fn main() {
         std::io::Error,
     };
 
-    async fn request() -> Result<String, Error> {
+    async fn get() -> Result<String, Error> {
         let addr = Uri::from_static("http://127.0.0.1:3001");
         let path = Uri::from_static("/hello");
 
@@ -19,7 +19,7 @@ fn main() {
             .await
     }
 
-    async fn request_in_executor(ex: &Executor<'_>) -> Result<String, Error> {
+    async fn get_in_executor(ex: &Executor<'_>) -> Result<String, Error> {
         let addr = Uri::from_static("http://127.0.0.1:3001");
         let path = Uri::from_static("/hello");
 
@@ -31,10 +31,10 @@ fn main() {
 
     async fn run(mode: &str) -> Result<String, Error> {
         match mode {
-            "handle" => request().await,
+            "handle" => get().await,
             "executor" => {
                 let ex = Executor::new();
-                ex.run(request_in_executor(&ex)).await
+                ex.run(get_in_executor(&ex)).await
             }
             unknown => Err(Error::other(format!("unknown mode {unknown}"))),
         }

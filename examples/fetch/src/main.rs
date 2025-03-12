@@ -1,5 +1,5 @@
 use {
-    areq::{http::Uri, prelude::*},
+    areq::{body::Boxed, http::Uri, prelude::*},
     async_net::TcpStream,
     futures_lite::{future, prelude::*},
     std::{
@@ -56,7 +56,7 @@ async fn fetch(proto: &str, uri: Uri) -> Result<(), Error> {
 
 async fn get<H>(handshake: H, uri: Uri) -> Result<(), Error>
 where
-    H: Handshake<TcpStream, ()>,
+    H: Handshake<TcpStream, Boxed<'static>>,
 {
     use {
         areq::{Address, Session},

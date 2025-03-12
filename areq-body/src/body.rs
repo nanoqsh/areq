@@ -462,7 +462,7 @@ where
 }
 
 /// Alias for a boxed [body](PollBody).
-pub type BoxedLocal<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
+pub type BoxedLocal<'body, C = Bytes> = Pin<Box<dyn PollBody<Chunk = C> + 'body>>;
 
 impl<'body, C> Default for BoxedLocal<'body, C>
 where
@@ -474,7 +474,7 @@ where
 }
 
 /// Alias for a boxed thread-safe [body](PollBody).
-pub type Boxed<'body, C> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
+pub type Boxed<'body, C = Bytes> = Pin<Box<dyn PollBody<Chunk = C> + Send + 'body>>;
 
 impl<'body, C> Default for Boxed<'body, C>
 where

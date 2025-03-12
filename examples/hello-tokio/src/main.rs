@@ -7,7 +7,7 @@ fn main() {
         std::io::Error,
     };
 
-    async fn request() -> Result<String, Error> {
+    async fn get() -> Result<String, Error> {
         let addr = Uri::from_static("http://127.0.0.1:3001");
         let path = Uri::from_static("/hello");
 
@@ -22,7 +22,7 @@ fn main() {
     }
 
     let rt = tokio::runtime::Runtime::new();
-    match rt.and_then(|rt| rt.block_on(request())) {
+    match rt.and_then(|rt| rt.block_on(get())) {
         Ok(text) => println!("{text}"),
         Err(e) => eprintln!("io error: {e}"),
     }
