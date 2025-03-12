@@ -15,7 +15,7 @@ fn main() {
         Http1::default()
             .connect(addr)
             .await?
-            .handle(async |mut client| client.get(path).await?.body().text().await)
+            .handle(async |mut client| client.get(path).await?.text().await)
             .await
     }
 
@@ -26,7 +26,7 @@ fn main() {
         let (mut client, conn) = Http1::default().connect(addr).await?;
         ex.spawn(conn).detach();
 
-        client.get(path).await?.body().text().await
+        client.get(path).await?.text().await
     }
 
     async fn run(mode: &str) -> Result<String, Error> {

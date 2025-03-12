@@ -1,7 +1,7 @@
 use {
     crate::{
         addr::Address,
-        body::{BoxedLocal, prelude::*},
+        body::{Boxed, prelude::*},
         client::Client,
     },
     futures_lite::prelude::*,
@@ -97,7 +97,7 @@ impl error::Error for Error {
 }
 
 #[derive(Debug)]
-pub struct Request<B> {
+pub struct Request<B = Boxed<'static>> {
     head: request::Parts,
     body: B,
 }
@@ -162,8 +162,20 @@ impl<B> From<http::Request<B>> for Request<B> {
     }
 }
 
+impl<B> IntoBody for Request<B>
+where
+    B: IntoBody,
+{
+    type Chunk = B::Chunk;
+    type Body = B::Body;
+
+    fn into_body(self) -> Self::Body {
+        self.body.into_body()
+    }
+}
+
 #[derive(Debug)]
-pub struct Response<B = BoxedLocal<'static>> {
+pub struct Response<B = Boxed<'static>> {
     head: response::Parts,
     body: B,
 }
@@ -199,13 +211,6 @@ impl<B> Response<B> {
             body: f(self.body),
         }
     }
-
-    pub fn body(self) -> B
-    where
-        B: Body,
-    {
-        self.body
-    }
 }
 
 impl<B> From<Response<B>> for http::Response<B> {
@@ -218,5 +223,17 @@ impl<B> From<http::Response<B>> for Response<B> {
     fn from(res: http::Response<B>) -> Self {
         let (head, body) = res.into_parts();
         Self { head, body }
+    }
+}
+
+impl<B> IntoBody for Response<B>
+where
+    B: IntoBody,
+{
+    type Chunk = B::Chunk;
+    type Body = B::Body;
+
+    fn into_body(self) -> Self::Body {
+        self.body.into_body()
     }
 }

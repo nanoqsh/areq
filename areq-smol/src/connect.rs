@@ -36,7 +36,7 @@ use {
 ///
 ///     // Now you can work with the client
 ///     // The background task will complete once the client is dropped
-///     client.get(path).await?.body().text().await
+///     client.get(path).await?.text().await
 /// }
 /// ```
 ///
@@ -57,7 +57,7 @@ use {
 ///     Http1::default()
 ///         .connect(addr)
 ///         .await?
-///         .handle(async |mut client| client.get(path).await?.body().text().await)
+///         .handle(async |mut client| client.get(path).await?.text().await)
 ///         .await
 /// }
 /// ```

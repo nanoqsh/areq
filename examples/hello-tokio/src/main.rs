@@ -9,16 +9,11 @@ fn main() {
 
     async fn get() -> Result<String, Error> {
         let addr = Uri::from_static("http://127.0.0.1:3001");
-        let path = Uri::from_static("/hello");
+        let (mut client, conn) = Http1::default().connect(addr).await?;
+        tokio::spawn(conn);
 
-        Http1::default()
-            .connect_spawned(addr)
-            .await?
-            .get(path)
-            .await?
-            .body()
-            .text()
-            .await
+        let path = Uri::from_static("/hello");
+        client.get(path).await?.text().await
     }
 
     let rt = tokio::runtime::Runtime::new();

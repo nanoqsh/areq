@@ -89,7 +89,7 @@ where
         println!();
 
         // print response body
-        let read = pin::pin!(res.body().read());
+        let read = pin::pin!(res.read());
         let mut lines = BufReader::new(read).lines();
         let mut stdout = io::stdout();
 

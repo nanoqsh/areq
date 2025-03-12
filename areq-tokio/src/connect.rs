@@ -10,8 +10,7 @@ use {
 /// If a connection is successful, the [`connect`](Connect::connect) method
 /// returns an HTTP client and a future that needs to be polled in background
 /// while the client sends requests and receives responses.
-/// The simplest way to do this is to call
-/// [`connect_spawned`](Connect::connect_spawned).
+/// The simplest way to do this is to call [`tokio::spawn`].
 ///
 /// # Example
 /// ```
@@ -32,17 +31,12 @@ use {
 ///
 ///     // Now you can work with the client
 ///     // The background task will complete once the client is dropped
-///     client.get(path).await?.body().text().await
+///     client.get(path).await?.text().await
 /// }
 /// ```
 pub trait Connect<A, B>: HandshakeWith<Io<TcpStream>, B> {
     /// Connects to the given address.
     async fn connect(self, addr: A) -> Result<(Self::Client, Self::Task), Error>;
-
-    /// Connects to the given address and spawns the task in tokio executor.
-    ///
-    /// If a connection is successful, it returns an HTTP client.
-    async fn connect_spawned(self, addr: A) -> Result<Self::Client, Error>;
 }
 
 impl<H, A, B> Connect<A, B> for H
@@ -65,12 +59,5 @@ where
         };
 
         self.handshake(se).await
-    }
-
-    #[inline]
-    async fn connect_spawned(self, addr: A) -> Result<Self::Client, Error> {
-        let (client, conn) = self.connect(addr).await?;
-        tokio::spawn(conn);
-        Ok(client)
     }
 }
