@@ -31,5 +31,8 @@ rustls-pemfile = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 url.workspace = true
 
+[dev-dependencies]
+areq-tokio.workspace = true
+
 [lints]
 workspace = true
