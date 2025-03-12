@@ -185,6 +185,27 @@ impl<'str> Body for &'str str {
     }
 }
 
+impl Body for Bytes {
+    type Chunk = Bytes;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        if self.is_empty() {
+            None
+        } else {
+            let s = mem::take(self);
+            Some(Ok(s))
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: Some(self.len() as u64),
+        }
+    }
+}
+
 /// Returns the full body from a [buffer](Buf).
 ///
 /// # Example

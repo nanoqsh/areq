@@ -1,13 +1,17 @@
 use {
     axum::{
         Router,
+        extract::Path,
         response::{IntoResponse, Response},
         routing,
     },
     bytes::Bytes,
     futures_concurrency::prelude::*,
     futures_lite::{future, prelude::*, stream},
-    futures_rustls::{TlsAcceptor, rustls::ServerConfig},
+    futures_rustls::{
+        TlsAcceptor,
+        rustls::{ServerConfig, lock::Mutex},
+    },
     http_body_util::StreamBody,
     hyper::{
         body::Frame,
@@ -20,7 +24,10 @@ use {
         Executor, Timer, channel,
         net::{TcpListener, TcpStream},
     },
-    std::{convert::Infallible, io::Error, net::Ipv4Addr, pin, sync::Arc, thread, time::Duration},
+    std::{
+        collections::HashMap, convert::Infallible, io::Error, net::Ipv4Addr, pin, sync::Arc,
+        thread, time::Duration,
+    },
     tower::ServiceExt,
 };
 
@@ -54,9 +61,50 @@ fn main() {
         res
     }
 
+    fn set_kv(key: String, val: String, state: State) -> String {
+        let Ok(n) = val.parse() else {
+            return format!("failed to parse {val}");
+        };
+
+        state
+            .insert(key, n)
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| String::from("none"))
+    }
+
+    fn get_kv(key: String, state: State) -> String {
+        state
+            .get(&key)
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| String::from("none"))
+    }
+
+    #[derive(Clone)]
+    struct State(Arc<Mutex<HashMap<String, u32>>>);
+
+    impl State {
+        fn insert(&self, key: String, val: u32) -> Option<u32> {
+            self.0.lock().expect("lock mutex").insert(key, val)
+        }
+
+        fn get(&self, key: &str) -> Option<u32> {
+            self.0.lock().expect("lock mutex").get(key).copied()
+        }
+    }
+
+    let state = State(Arc::new(Mutex::new(HashMap::new())));
+
     let router = Router::new()
         .route("/hello", routing::get(handler))
-        .route("/events", routing::get(events));
+        .route("/events", routing::get(events))
+        .route("/kv/{key}", {
+            let state = state.clone();
+            routing::post(async |Path(key), val| set_kv(key, val, state))
+        })
+        .route("/kv/{key}", {
+            let state = state.clone();
+            routing::get(async |Path(key)| get_kv(key, state))
+        });
 
     let h1 = H1(router.clone());
     let h2 = H2(router);
