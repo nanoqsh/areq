@@ -39,7 +39,7 @@ cargo add areq-tokio -F http1
 
 Now you can make a GET request and read a response body:
 
-```rust
+```rust,ignore
 fn main() {
     use {
         areq_tokio::{areq::{http::Uri, http1::Http1}, prelude::*},

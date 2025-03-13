@@ -2,7 +2,7 @@
 name = "areq"
 description = "Async runtime-independent HTTP requests"
 documentation = "https://docs.rs/areq"
-readme = "README.md"
+readme = "../README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -31,8 +31,8 @@ rustls-pemfile = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 url.workspace = true
 
-[dev-dependencies]
-areq-tokio.workspace = true
-
 [lints]
 workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
