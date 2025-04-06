@@ -9,7 +9,7 @@
     </p>
 </div>
 
-# Development
+## Development
 
 <div align="center">
     <h4>🚧 The library is currently under development 🚧</h4>
@@ -17,14 +17,14 @@
 
 Many features require an unstable Rust feature – [return type notation](https://blog.rust-lang.org/inside-rust/2024/09/26/rtn-call-for-testing.html). The main crate `areq` has the `rtn` feature, which enables the missing functionality. High-level crates `areq-smol` and `areq-tokio` require this feature for compilation, so to use the library you need to install nightly compiler. Once the RTN feature is stabilized, the library will be usable on stable.
 
-# Features
+## Features
 
-* Async **only**, no hidden overhead from *blocking* API
+* Async **only**, no hidden overhead from blocking API
 * Independent of any async runtime, including [features](https://doc.rust-lang.org/cargo/reference/features.html). Instead, the runtime *extends* the functionality of the base crate
 * Zero-cost abstractions for a flexible solution and an ability to choose a simple API when needed
 * Modular and configurable – build exactly the HTTP client you need
 
-# Getting Started
+## Getting Started
 
 Although the library is runtime-independent, it also provides high-level crates for choosing a specific runtime. Currently, two crates are available:
 
@@ -39,7 +39,7 @@ cargo add areq-tokio -F http1
 
 Now you can make a GET request and read a response body:
 
-```rust,ignore
+```rust
 fn main() {
     use {
         areq_tokio::{areq::{http::Uri, http1::Http1}, prelude::*},

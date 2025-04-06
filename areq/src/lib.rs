@@ -1,4 +1,4 @@
-#![cfg_attr(doc, doc = include_str!("../../README.md"))]
+#![cfg_attr(all(doc, not(doctest)), doc = include_str!("../README.md"))]
 #![cfg_attr(feature = "rtn", feature(return_type_notation))]
 #![cfg_attr(not(feature = "rtn"), allow(async_fn_in_trait))]
 
