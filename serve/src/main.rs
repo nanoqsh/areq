@@ -61,34 +61,32 @@ fn main() {
         res
     }
 
-    fn set_kv(key: String, val: String, state: State) -> String {
-        let Ok(n) = val.parse() else {
-            return format!("failed to parse {val}");
-        };
-
-        state
-            .insert(key, n)
-            .map(|n| n.to_string())
-            .unwrap_or_else(|| String::from("none"))
-    }
-
-    fn get_kv(key: String, state: State) -> String {
-        state
-            .get(&key)
-            .map(|n| n.to_string())
-            .unwrap_or_else(|| String::from("none"))
-    }
-
     #[derive(Clone)]
     struct State(Arc<Mutex<HashMap<String, u32>>>);
 
     impl State {
-        fn insert(&self, key: String, val: u32) -> Option<u32> {
+        fn set(&self, key: String, val: u32) -> Option<u32> {
             self.0.lock().expect("lock mutex").insert(key, val)
         }
 
         fn get(&self, key: &str) -> Option<u32> {
             self.0.lock().expect("lock mutex").get(key).copied()
+        }
+
+        fn set_kv(self, key: String, val: String) -> String {
+            let Ok(n) = val.parse() else {
+                return format!("failed to parse {val}");
+            };
+
+            self.set(key, n)
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| String::from("none"))
+        }
+
+        fn get_kv(self, key: String) -> String {
+            self.get(&key)
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| String::from("none"))
         }
     }
 
@@ -99,11 +97,11 @@ fn main() {
         .route("/events", routing::get(events))
         .route("/kv/{key}", {
             let state = state.clone();
-            routing::post(async |Path(key), val| set_kv(key, val, state))
+            routing::post(async |Path(key), val| state.set_kv(key, val))
         })
         .route("/kv/{key}", {
             let state = state.clone();
-            routing::get(async |Path(key)| get_kv(key, state))
+            routing::get(async |Path(key)| state.get_kv(key))
         });
 
     let h1 = H1(router.clone());
