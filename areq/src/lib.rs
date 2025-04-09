@@ -1,4 +1,5 @@
 #![cfg_attr(all(doc, not(doctest)), doc = include_str!("../README.md"))]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(feature = "rtn", feature(return_type_notation))]
 #![cfg_attr(not(feature = "rtn"), allow(async_fn_in_trait))]
 
@@ -6,16 +7,21 @@ mod addr;
 mod alt;
 mod client;
 #[cfg(feature = "http1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
 pub mod http1;
 #[cfg(feature = "http2")]
+#[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 pub mod http2;
 #[cfg(feature = "http2")]
+#[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 mod io;
 mod negotiate;
 mod proto;
 #[cfg(feature = "rtn")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rtn")))]
 mod proto_rtn;
 #[cfg(feature = "tls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tls")))]
 pub mod tls;
 
 /// The crate's prelude.
@@ -42,4 +48,5 @@ pub use {
 };
 
 #[cfg(feature = "rtn")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rtn")))]
 pub use crate::proto::HandshakeWith;
