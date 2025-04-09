@@ -31,7 +31,9 @@ where
     async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error> {
         let Session { addr, io } = se;
         let (reqs, conn) = self.conf.handshake(io);
-        let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
+        let host =
+            HeaderValue::from_maybe_shared(addr.host_value()).map_err(|_| Error::InvalidHost)?;
+
         let client = H1 { reqs, host };
         Ok((client, conn))
     }

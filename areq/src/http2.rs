@@ -35,7 +35,9 @@ where
         let Session { addr, io } = se;
         let io = Io::new(io);
         let (send, conn) = self.build.handshake(io).await?;
-        let host = addr.repr().parse().map_err(|_| Error::InvalidHost)?;
+        let host =
+            HeaderValue::from_maybe_shared(addr.host_value()).map_err(|_| Error::InvalidHost)?;
+
         let client = H2 { send, host };
         let conn = async {
             _ = conn.await;

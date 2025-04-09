@@ -186,7 +186,7 @@ impl<'str> Body for &'str str {
 }
 
 impl Body for Bytes {
-    type Chunk = Bytes;
+    type Chunk = Self;
 
     #[inline]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {

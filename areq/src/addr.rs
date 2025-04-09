@@ -1,11 +1,11 @@
 use {
     crate::proto::Error,
+    bytes::Bytes,
     http::{
         Uri,
         uri::{Authority, Scheme},
     },
     std::{
-        borrow::Cow,
         error, fmt,
         io::{self, ErrorKind},
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
@@ -70,17 +70,17 @@ impl Address {
     }
 
     /// Returns a representation of the host and port based on the security protocol
-    pub fn repr(&self) -> Cow<'_, str> {
+    pub fn host_value(&self) -> Bytes {
         if self.port == default_port(self.secure) {
             match &self.host {
-                Host::Domain(domain) => Cow::Borrowed(domain),
-                Host::Ipv4(ip) => Cow::Owned(ip.to_string()),
-                Host::Ipv6(ip) => Cow::Owned(ip.to_string()),
+                Host::Domain(domain) => Bytes::copy_from_slice(domain.as_bytes()),
+                Host::Ipv4(ip) => Bytes::from(ip.to_string()),
+                Host::Ipv6(ip) => Bytes::from(ip.to_string()),
             }
         } else {
             let host = &self.host;
             let port = self.port;
-            Cow::Owned(format!("{host}:{port}"))
+            Bytes::from(format!("{host}:{port}"))
         }
     }
 }

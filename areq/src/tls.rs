@@ -49,7 +49,11 @@ where
         let tls = self.connector.connect(name, io).await?;
 
         let (_, conn) = tls.get_ref();
-        let proto = conn.alpn_protocol().unwrap_or_default();
+        let proto = conn
+            .alpn_protocol()
+            // if the remote server doesn't specify a protocol,
+            // fall back to the first supported one by default
+            .unwrap_or_else(|| self.inner.support().next().unwrap_or_default());
 
         let handshake = self
             .inner

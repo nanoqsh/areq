@@ -65,7 +65,8 @@ where
     };
 
     let addr = Address::from_uri(&uri)?;
-    let io = TcpStream::connect(addr.repr().as_ref()).await?;
+    let host = addr.host.to_string();
+    let io = TcpStream::connect((host, addr.port)).await?;
     let se = Session { addr, io };
 
     let (mut client, conn) = handshake.handshake(se).await?;
