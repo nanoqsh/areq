@@ -12,7 +12,7 @@ pub mod smol {
 /// The crate's prelude.
 pub mod prelude {
     pub use {
-        crate::{smol::Connect as _, smol::Handle as _},
+        crate::smol::{Connect as _, Handle as _},
         areq::prelude::*,
     };
 }

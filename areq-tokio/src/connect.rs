@@ -10,12 +10,14 @@ use {
 /// If a connection is successful, the [`connect`](Connect::connect) method
 /// returns an HTTP client and a future that needs to be polled in background
 /// while the client sends requests and receives responses.
-/// The simplest way to do this is to call [`tokio::spawn`].
+/// The simplest way to do this is to call
+/// [`tokio::spawn`](https://docs.rs/tokio/latest/tokio/task/fn.spawn.html).
 ///
 /// # Example
+///
 /// ```
 /// use {
-///     areq_tokio::{areq::{http::Uri, http1::Http1}, prelude::*},
+///     areq_tokio::{http::Uri, http1::Http1, prelude::*},
 ///     std::io::Error,
 /// };
 ///

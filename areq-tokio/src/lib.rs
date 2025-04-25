@@ -4,14 +4,14 @@
 mod connect;
 mod io;
 
+/// Tokio related types and traits.
+pub mod tokio {
+    pub use crate::{connect::Connect, io::Io};
+}
+
 /// The crate's prelude.
 pub mod prelude {
-    pub use {crate::Connect as _, areq::prelude::*};
+    pub use {crate::tokio::Connect as _, areq::prelude::*};
 }
 
-/// Base `areq` crate.   
-pub mod areq {
-    pub use areq::*;
-}
-
-pub use crate::{connect::Connect, io::Io};
+pub use areq::*;

@@ -18,7 +18,7 @@ Now you can connect to a remote server, establish an HTTP connection and perform
 
 ```rust
 use {
-    areq_tokio::{areq::{http::Uri, http1::Http1}, prelude::*},
+    areq_tokio::{http::Uri, http1::Http1, prelude::*},
     std::io::Error,
 };
 
