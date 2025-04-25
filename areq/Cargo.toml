@@ -2,7 +2,7 @@
 name = "areq"
 description = "Async runtime-independent HTTP requests"
 documentation = "https://docs.rs/areq"
-readme = "../README.md"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -63,9 +63,12 @@ impl<I> Handler<I> {
         loop {
             let start = usize::saturating_sub(cursor, sep.len());
             let buf = &self.read_buf.as_mut()[start..];
-            if let Some(n) = buf.windows(sep.len()).position(|sub| sub == sep) {
-                let at = start + n + sep.len();
-                break Ok(self.read_buf.split_to(at).freeze());
+            for i in memchr::memchr_iter(sep[0], buf) {
+                let (_, rest) = buf.split_at(i);
+                if rest.starts_with(sep) {
+                    let at = start + i + sep.len();
+                    return Ok(self.read_buf.split_to(at).freeze());
+                }
             }
 
             cursor += self.read_buf.len() - cursor;
