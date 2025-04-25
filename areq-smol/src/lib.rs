@@ -4,17 +4,17 @@
 mod connect;
 mod handle;
 
+/// Smol related traits.
+pub mod smol {
+    pub use crate::{connect::Connect, handle::Handle};
+}
+
 /// The crate's prelude.
 pub mod prelude {
     pub use {
-        crate::{Connect as _, Handle as _},
+        crate::{smol::Connect as _, smol::Handle as _},
         areq::prelude::*,
     };
 }
 
-/// Base `areq` crate.   
-pub mod areq {
-    pub use areq::*;
-}
-
-pub use crate::{connect::Connect, handle::Handle};
+pub use areq::*;

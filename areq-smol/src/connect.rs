@@ -19,7 +19,7 @@ use {
 ///
 /// ```
 /// use {
-///     areq_smol::{areq::{http::Uri, http1::Http1}, prelude::*},
+///     areq_smol::{http::Uri, http1::Http1, prelude::*},
 ///     async_executor::Executor,
 ///     std::io::Error,
 /// };
@@ -40,13 +40,13 @@ use {
 /// }
 /// ```
 ///
-/// You can also use an extension method [`handle`](crate::Handle::handle),
+/// You can also use an extension method [`handle`](crate::smol::Handle::handle),
 /// which takes an async closure, calls it on the client, and polls the task
 /// in background for the entire duration of the closure execution.
 ///
 /// ```
 /// use {
-///     areq_smol::{areq::{http::Uri, http1::Http1}, prelude::*},
+///     areq_smol::{http::Uri, http1::Http1, prelude::*},
 ///     std::io::Error,
 /// };
 ///

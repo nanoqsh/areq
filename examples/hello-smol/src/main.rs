@@ -1,9 +1,6 @@
 fn main() {
     use {
-        areq_smol::{
-            areq::{http::Uri, http1::Http1},
-            prelude::*,
-        },
+        areq_smol::{http::Uri, http1::Http1, prelude::*},
         async_executor::Executor,
         std::io::Error,
     };

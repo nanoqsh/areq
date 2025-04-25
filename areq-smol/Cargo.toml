@@ -24,6 +24,7 @@ futures-lite = { workspace = true, features = ["std"] }
 url.workspace = true
 
 [dev-dependencies]
+areq = { workspace = true, features = ["http1", "rtn"] }
 async-executor.workspace = true
 
 [lints]
