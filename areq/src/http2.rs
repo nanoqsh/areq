@@ -76,8 +76,8 @@ where
 {
     fn prepare(&self, req: &mut Request<B>) {
         debug_assert!(
-            req.uri().scheme().is_some(),
-            "the request must have an uri scheme for http2",
+            req.uri().scheme().is_some() && req.uri().authority().is_some(),
+            "the request must have an uri scheme and authority for http2",
         );
 
         *req.version_mut() = Version::HTTP_2;

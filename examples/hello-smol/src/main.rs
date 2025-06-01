@@ -6,24 +6,22 @@ fn main() {
     };
 
     async fn get() -> Result<String, Error> {
-        let addr = Uri::from_static("http://127.0.0.1:3001");
-        let path = Uri::from_static("/hello");
+        let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
         Http1::default()
-            .connect(addr)
+            .connect(uri.clone())
             .await?
-            .handle(async |mut client| client.get(path).await?.text().await)
+            .handle(async |mut client| client.get(uri).await?.text().await)
             .await
     }
 
     async fn get_in_executor(ex: &Executor<'_>) -> Result<String, Error> {
-        let addr = Uri::from_static("http://127.0.0.1:3001");
-        let path = Uri::from_static("/hello");
+        let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
-        let (mut client, conn) = Http1::default().connect(addr).await?;
+        let (mut client, conn) = Http1::default().connect(uri.clone()).await?;
         ex.spawn(conn).detach();
 
-        client.get(path).await?.text().await
+        client.get(uri).await?.text().await
     }
 
     async fn run(mode: &str) -> Result<String, Error> {
