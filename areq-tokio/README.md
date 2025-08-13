@@ -1,7 +1,7 @@
 
 Async HTTP requests for [tokio] runtime.
 
-This crate is a part of [areq] library, the runtime-independent HTTP requests. If you want your code to run in [tokio] runtime, this crate is the right choice.
+This crate is a part of [areq] library, the runtime-agnostic HTTP requests. If you want your code to run in [tokio] runtime, this crate is the right choice.
 
 [tokio]: https://docs.rs/tokio
 [areq]: https://docs.rs/areq

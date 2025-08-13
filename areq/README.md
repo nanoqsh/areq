@@ -1,7 +1,7 @@
 <div align="center">
     <h1>areq</h1>
     <p>
-        Async runtime independent HTTP requests
+        Async runtime agnostic HTTP requests
     </p>
     <p>
         <a href="https://crates.io/crates/areq"><img src="https://img.shields.io/crates/v/areq.svg"></img></a>
@@ -26,7 +26,7 @@ Many features require an unstable Rust feature – [return type notation](https:
 
 ## Getting Started
 
-Although the library is runtime-independent, it also provides high-level crates for choosing a specific runtime. Currently, two crates are available:
+Although the library is runtime-agnostic, it also provides high-level crates for choosing a specific runtime. Currently, two crates are available:
 
 * [`areq-smol`](https://docs.rs/areq-smol) provides support for the [smol](https://docs.rs/smol) runtime
 * [`areq-tokio`](https://docs.rs/areq-tokio) provides support for the [tokio](https://docs.rs/tokio) runtime
