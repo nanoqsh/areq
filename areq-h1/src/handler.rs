@@ -8,7 +8,7 @@ use {
 };
 
 const KB: usize = 1 << 10;
-const INIT_BUFFER_LEN: usize = 8 * KB;
+const INIT_BUFFER_LEN: usize = 2 * KB;
 const MAX_BUFFER_LEN: usize = 128 * KB;
 
 pub(crate) struct Handler<I> {
