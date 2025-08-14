@@ -1,6 +1,6 @@
 fn main() {
     use {
-        areq_tokio::{http::Uri, http1::Http1, prelude::*},
+        areq_tokio::{http::Uri, http1::Http1, prelude::*, tls::Tls},
         std::io::Error,
     };
 
@@ -19,9 +19,31 @@ fn main() {
         client.get(uri).await?.text().await
     }
 
+    async fn get_tls() -> Result<String, Error> {
+        let uri = Uri::from_static(
+            // fetch this code from github
+            "https://raw.githubusercontent.com/nanoqsh/areq/refs/heads/main/examples/hello-tokio/src/main.rs",
+        );
+
+        let (mut client, conn) = Tls::new(Http1::default()).connect(uri.clone()).await?;
+        tokio::spawn(conn);
+
+        client.get(uri).await?.text().await
+    }
+
+    async fn run(mode: &str) -> Result<String, Error> {
+        match mode {
+            "get" => get().await,
+            "tls" => get_tls().await,
+            unknown => Err(Error::other(format!("unknown mode {unknown}"))),
+        }
+    }
+
     let rt = tokio::runtime::Runtime::new();
-    match rt.and_then(|rt| rt.block_on(get())) {
+    let mode = std::env::args().nth(1);
+    let mode = mode.as_deref().unwrap_or("get");
+    match rt.and_then(|rt| rt.block_on(run(mode))) {
         Ok(text) => println!("{text}"),
-        Err(e) => eprintln!("io error: {e}"),
+        Err(e) => eprintln!("error: {e}"),
     }
 }

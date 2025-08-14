@@ -22,18 +22,17 @@ use {
 /// };
 ///
 /// async fn get() -> Result<String, Error> {
-///     let addr = Uri::from_static("http://127.0.0.1:3001");
-///     let path = Uri::from_static("/hello");
+///     let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 ///
 ///     // Establish a connection to the address
-///     let (mut client, conn) = Http1::default().connect(addr).await?;
+///     let (mut client, conn) = Http1::default().connect(uri.clone()).await?;
 ///
 ///     // Spawn the task in background
 ///     tokio::spawn(conn);
 ///
 ///     // Now you can work with the client
 ///     // The background task will complete once the client is dropped
-///     client.get(path).await?.text().await
+///     client.get(uri).await?.text().await
 /// }
 /// ```
 pub trait Connect<A, B>: HandshakeWith<Io<TcpStream>, B> {

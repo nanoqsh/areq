@@ -21,6 +21,26 @@ pub struct Tls<N> {
 }
 
 impl<N> Tls<N> {
+    #[cfg(feature = "tls")]
+    pub fn new(inner: N) -> Self {
+        use std::sync::LazyLock;
+
+        static CONF: LazyLock<Arc<ClientConfig>> = LazyLock::new(|| {
+            let root = RootCertStore {
+                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+            };
+
+            let conf = ClientConfig::builder()
+                .with_root_certificates(root)
+                .with_no_client_auth();
+
+            Arc::new(conf)
+        });
+
+        let connector = TlsConnector::from(CONF.clone());
+        Self::with_connector(inner, connector)
+    }
+
     pub fn with_cert(inner: N, cert: &[u8]) -> Result<Self, Error>
     where
         N: Negotiate,

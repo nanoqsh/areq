@@ -1,6 +1,6 @@
 fn main() {
     use {
-        areq_smol::{http::Uri, http1::Http1, prelude::*},
+        areq_smol::{http::Uri, http1::Http1, prelude::*, tls::Tls},
         async_executor::Executor,
         std::io::Error,
     };
@@ -9,6 +9,19 @@ fn main() {
         let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
         Http1::default()
+            .connect(uri.clone())
+            .await?
+            .handle(async |mut client| client.get(uri).await?.text().await)
+            .await
+    }
+
+    async fn get_tls() -> Result<String, Error> {
+        let uri = Uri::from_static(
+            // fetch this code from github
+            "https://raw.githubusercontent.com/nanoqsh/areq/refs/heads/main/examples/hello-smol/src/main.rs",
+        );
+
+        Tls::new(Http1::default())
             .connect(uri.clone())
             .await?
             .handle(async |mut client| client.get(uri).await?.text().await)
@@ -26,7 +39,8 @@ fn main() {
 
     async fn run(mode: &str) -> Result<String, Error> {
         match mode {
-            "handle" => get().await,
+            "get" => get().await,
+            "tls" => get_tls().await,
             "executor" => {
                 let ex = Executor::new();
                 ex.run(get_in_executor(&ex)).await
@@ -36,9 +50,9 @@ fn main() {
     }
 
     let mode = std::env::args().nth(1);
-    let mode = mode.as_deref().unwrap_or("handle");
+    let mode = mode.as_deref().unwrap_or("get");
     match futures_lite::future::block_on(run(mode)) {
         Ok(text) => println!("{text}"),
-        Err(e) => eprintln!("io error: {e}"),
+        Err(e) => eprintln!("error: {e}"),
     }
 }

@@ -15,7 +15,8 @@ rust-version.workspace = true
 [features]
 http1 = ["areq-h1"]
 http2 = ["h2", "tokio"]
-tls = ["futures-rustls", "rustls-pemfile"]
+tls-manual = ["futures-rustls", "rustls-pemfile"]
+tls = ["tls-manual", "webpki-roots"]
 rtn = ["areq-body/rtn"]
 
 [dependencies]
@@ -30,6 +31,7 @@ pin-project-lite.workspace = true
 rustls-pemfile = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 url.workspace = true
+webpki-roots = { workspace = true, optional = true }
 
 [lints]
 workspace = true

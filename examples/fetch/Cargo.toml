@@ -4,7 +4,7 @@ version = "0.0.0"
 edition.workspace = true
 
 [dependencies]
-areq = { workspace = true, features = ["http1", "http2", "tls"] }
+areq = { workspace = true, features = ["http1", "http2", "tls-manual"] }
 async-net.workspace = true
 futures-lite.workspace = true
 
