@@ -4,7 +4,7 @@ use {
     std::{
         convert::Infallible,
         future,
-        io::Error,
+        io::{Error, ErrorKind},
         marker::PhantomData,
         mem,
         ops::DerefMut,
@@ -67,19 +67,19 @@ pub enum Hint {
 impl Hint {
     /// Returns `true` if the hint is [`Empty`](Hint::Empty).
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(self) -> bool {
         matches!(self, Self::Empty)
     }
 
     /// Returns `true` if the hint is [`Full`](Hint::Full).
     #[inline]
-    pub fn is_full(&self) -> bool {
+    pub fn is_full(self) -> bool {
         matches!(self, Self::Full { .. })
     }
 
     /// Returns `true` if the hint is [`Chunked`](Hint::Chunked).
     #[inline]
-    pub fn is_chunked(&self) -> bool {
+    pub fn is_chunked(self) -> bool {
         matches!(self, Self::Chunked { .. })
     }
 
@@ -90,6 +90,22 @@ impl Hint {
             Self::Empty => true,
             Self::Full { len } => len == Some(0),
             Self::Chunked { end } => end,
+        }
+    }
+
+    /// Returns size as `Some` value or `None` if it's unknown.
+    #[inline]
+    pub fn size(self) -> Option<u64> {
+        match self {
+            Self::Empty => Some(0),
+            Self::Full { len } => len,
+            Self::Chunked { end } => {
+                if end {
+                    Some(0)
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -596,22 +612,27 @@ pub trait BodyExt: IntoBody {
             None => debug_assert!(size.end(), "the body must be empty"),
         }
 
-        debug_assert!(body.size_hint().end(), "the body must ends after the chunk",);
+        debug_assert!(body.size_hint().end(), "the body must ends after the chunk");
 
         chunk.transpose()
     }
 
     #[inline]
-    async fn text(self) -> Result<String, Error>
-    where
-        Self::Chunk: Into<Bytes>,
-    {
-        let bytes = self.bytes().await?;
-        let v = Vec::from(bytes);
-        let s = match String::from_utf8(v) {
-            Ok(s) => s,
-            Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
-        };
+    async fn text(self) -> Result<String, Error> {
+        let mut body = self.into_body();
+        let cap = body.size_hint().size().unwrap_or(1024);
+        let mut s = String::with_capacity(cap as usize);
+        while let Some(res) = body.chunk().await {
+            match str::from_utf8(res?.chunk()) {
+                Ok(chunk) => s.push_str(chunk),
+                Err(_) => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "stream did not contain valid UTF-8",
+                    ));
+                }
+            }
+        }
 
         Ok(s)
     }
