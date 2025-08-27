@@ -15,7 +15,8 @@ pub mod http2;
 #[cfg(feature = "http2")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 mod io;
-mod negotiate;
+#[doc(hidden)]
+pub mod negotiate;
 mod proto;
 #[cfg(feature = "rtn")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rtn")))]

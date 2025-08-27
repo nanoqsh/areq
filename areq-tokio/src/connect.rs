@@ -25,7 +25,7 @@ use {
 ///     let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 ///
 ///     // Establish a connection to the address
-///     let (mut client, conn) = Http1::default().connect(uri.clone()).await?;
+///     let (mut client, conn) = Http1::default().connect(&uri).await?;
 ///
 ///     // Spawn the task in background
 ///     tokio::spawn(conn);

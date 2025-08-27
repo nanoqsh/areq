@@ -9,7 +9,7 @@ fn main() {
         let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
         Http1::default()
-            .connect(uri.clone())
+            .connect(&uri)
             .await?
             .handle(async |mut client| client.get(uri).await?.text().await)
             .await
@@ -22,7 +22,7 @@ fn main() {
         );
 
         Tls::new(Http1::default())
-            .connect(uri.clone())
+            .connect(&uri)
             .await?
             .handle(async |mut client| client.get(uri).await?.text().await)
             .await
@@ -31,7 +31,7 @@ fn main() {
     async fn get_in_executor(ex: &Executor<'_>) -> Result<String, Error> {
         let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
-        let (mut client, conn) = Http1::default().connect(uri.clone()).await?;
+        let (mut client, conn) = Http1::default().connect(&uri).await?;
         ex.spawn(conn).detach();
 
         client.get(uri).await?.text().await
