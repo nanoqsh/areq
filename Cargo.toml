@@ -23,7 +23,7 @@ categories = [
     "web-programming::http-client",
 ]
 repository = "https://github.com/nanoqsh/areq"
-rust-version = "1.85"
+rust-version = "1.87"
 
 [workspace.dependencies]
 areq = { version = "=0.1.0-alpha4", path = "areq" }
