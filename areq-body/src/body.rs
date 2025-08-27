@@ -2,6 +2,7 @@ use {
     bytes::{Buf, Bytes, BytesMut},
     futures_lite::prelude::*,
     std::{
+        convert::Infallible,
         future,
         io::Error,
         marker::PhantomData,
@@ -131,7 +132,7 @@ where
 }
 
 impl Body for () {
-    type Chunk = &'static [u8];
+    type Chunk = Void;
 
     #[inline]
     async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
@@ -182,6 +183,43 @@ impl<'str> Body for &'str str {
         Hint::Full {
             len: Some(self.len() as u64),
         }
+    }
+}
+
+impl<B> Body for Option<B>
+where
+    B: Body,
+{
+    type Chunk = B::Chunk;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        match self {
+            Some(body) => body.chunk().await,
+            None => None,
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        match self {
+            Some(body) => body.size_hint(),
+            None => Hint::Empty,
+        }
+    }
+}
+
+impl Body for Infallible {
+    type Chunk = Void;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        match *self {}
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        match *self {}
     }
 }
 
