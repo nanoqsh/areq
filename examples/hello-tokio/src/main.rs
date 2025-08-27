@@ -25,7 +25,10 @@ fn main() {
             "https://raw.githubusercontent.com/nanoqsh/areq/refs/heads/main/examples/hello-tokio/src/main.rs",
         );
 
-        let (mut client, conn) = Tls::new(Http1::default()).connect(&uri).await?;
+        let (mut client, conn) = Tls::with_webpki_roots(Http1::default())
+            .connect(&uri)
+            .await?;
+
         tokio::spawn(conn);
 
         client.get(uri, ()).await?.text().await

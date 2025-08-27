@@ -4,7 +4,7 @@ version = "0.0.0"
 edition.workspace = true
 
 [dependencies]
-areq-smol = { workspace = true, features = ["http1", "tls"] }
+areq-smol = { workspace = true, features = ["http1", "webpki-roots"] }
 async-executor.workspace = true
 smol.workspace = true
 

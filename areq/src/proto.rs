@@ -106,7 +106,7 @@ impl<B> Request<B> {
     pub fn new(method: Method, uri: Uri, body: B) -> Self {
         let (mut head, body) = http::Request::new(body).into_parts();
         head.method = method;
-        head.uri = uri.into();
+        head.uri = uri;
         Self { head, body }
     }
 

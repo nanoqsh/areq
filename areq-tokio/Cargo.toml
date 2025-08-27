@@ -15,8 +15,8 @@ rust-version.workspace = true
 [features]
 http1 = ["areq/http1"]
 http2 = ["areq/http2"]
-tls-manual = ["areq/tls-manual"]
 tls = ["areq/tls"]
+webpki-roots = ["areq/webpki-roots"]
 
 [dependencies]
 areq = { workspace = true, features = ["rtn"] }

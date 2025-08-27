@@ -15,8 +15,8 @@ rust-version.workspace = true
 [features]
 http1 = ["areq-h1"]
 http2 = ["h2", "tokio"]
-tls-manual = ["futures-rustls", "rustls-pemfile"]
-tls = ["tls-manual", "webpki-roots"]
+tls = ["futures-rustls", "rustls-pemfile"]
+webpki-roots = ["tls", "dep:webpki-roots"]
 rtn = ["areq-body/rtn"]
 
 [dependencies]

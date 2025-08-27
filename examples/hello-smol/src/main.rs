@@ -21,7 +21,7 @@ fn main() {
             "https://raw.githubusercontent.com/nanoqsh/areq/refs/heads/main/examples/hello-smol/src/main.rs",
         );
 
-        Tls::new(Http1::default())
+        Tls::with_webpki_roots(Http1::default())
             .connect(&uri)
             .await?
             .handle(async |mut client| client.get(uri, ()).await?.text().await)
@@ -32,6 +32,9 @@ fn main() {
         let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
         let (mut client, conn) = Http1::default().connect(&uri).await?;
+
+        // handle the connection in the smol's executor
+        // it will automatically terminate when client is dropped
         ex.spawn(conn).detach();
 
         client.get(uri, ()).await?.text().await

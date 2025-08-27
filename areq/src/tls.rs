@@ -21,8 +21,9 @@ pub struct Tls<N> {
 }
 
 impl<N> Tls<N> {
-    #[cfg(feature = "tls")]
-    pub fn new(inner: N) -> Self {
+    #[cfg(feature = "webpki-roots")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "webpki-roots")))]
+    pub fn with_webpki_roots(inner: N) -> Self {
         use std::sync::LazyLock;
 
         static CONF: LazyLock<Arc<ClientConfig>> = LazyLock::new(|| {

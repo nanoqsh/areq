@@ -4,7 +4,11 @@ use {
     std::io::Error,
 };
 
-pub trait Handle<C, U, F> {
+pub trait Handle<C, U, F>
+where
+    // Add more context for better DX with rust analyzer
+    F: AsyncFnOnce(C) -> Result<U, Error>,
+{
     async fn handle(self, f: F) -> Result<U, Error>;
 }
 
@@ -22,9 +26,10 @@ where
             Ok(())
         };
 
-        Box::pin(future::try_zip(io, f(client))) // box large futures
-            .await
-            .map(|(_, res)| res)
+        let (_, res) = Box::pin(future::try_zip(io, f(client))) // box large futures
+            .await?;
+
+        Ok(res)
     }
 }
 

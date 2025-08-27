@@ -21,8 +21,8 @@ mod proto;
 #[cfg(feature = "rtn")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rtn")))]
 mod proto_rtn;
-#[cfg(feature = "tls-manual")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tls-manual")))]
+#[cfg(feature = "tls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tls")))]
 pub mod tls;
 
 /// The crate's prelude.
