@@ -1,7 +1,7 @@
 //! The http client over TLS.
 
 use {
-    crate::proto::{Error, Handshake, Session, Task},
+    crate::proto::{Error, Handshake, Session},
     futures_lite::prelude::*,
     futures_rustls::{
         TlsConnector,
@@ -63,7 +63,10 @@ where
 {
     type Client = <N::Handshake as Handshake<TlsStream<I>, B>>::Client;
 
-    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error> {
+    async fn handshake(
+        self,
+        se: Session<I>,
+    ) -> Result<(Self::Client, impl Future<Output = ()>), Error> {
         let Session { addr, io } = se;
 
         let name = as_server_name(&addr.host)?.to_owned();

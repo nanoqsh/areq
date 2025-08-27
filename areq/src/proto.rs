@@ -25,11 +25,11 @@ pub trait Handshake<I, B> {
     type Client: Client<B>;
 
     /// Perform a handshake to establish a client session.
-    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error>;
+    async fn handshake(
+        self,
+        se: Session<I>,
+    ) -> Result<(Self::Client, impl Future<Output = ()>), Error>;
 }
-
-pub trait Task: Future<Output = ()> {}
-impl<F> Task for F where F: Future<Output = ()> {}
 
 /// The [handshake](Handshake) error type.
 #[derive(Debug)]

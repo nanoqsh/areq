@@ -2,7 +2,7 @@ use {
     crate::{
         client::Client,
         negotiate::Negotiate,
-        proto::{Error, Handshake, Request, Response, Session, Task},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     areq_body::prelude::*,
     futures_lite::prelude::*,
@@ -44,7 +44,10 @@ where
 {
     type Client = Alt<L::Client, R::Client>;
 
-    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error> {
+    async fn handshake(
+        self,
+        se: Session<I>,
+    ) -> Result<(Self::Client, impl Future<Output = ()>), Error> {
         let (client, conn) = match self {
             Self::Lhs { l } => {
                 let (client, conn) = l.handshake(se).await?;

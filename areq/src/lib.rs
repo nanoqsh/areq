@@ -15,7 +15,6 @@ pub mod http2;
 #[cfg(feature = "http2")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 mod io;
-#[doc(hidden)]
 pub mod negotiate;
 mod proto;
 #[cfg(feature = "rtn")]
@@ -43,7 +42,7 @@ pub use {
         addr::{Address, IntoHost, InvalidUri},
         alt::Alt,
         client::{Client, ClientExt},
-        proto::{Error, Handshake, Request, Response, Session, Task},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     bytes, http,
 };

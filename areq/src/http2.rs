@@ -6,7 +6,7 @@ use {
         client::Client,
         io::Io,
         negotiate::Negotiate,
-        proto::{Error, Handshake, Request, Response, Session, Task},
+        proto::{Error, Handshake, Request, Response, Session},
     },
     bytes::{Buf, Bytes},
     futures_lite::prelude::*,
@@ -31,7 +31,10 @@ where
 {
     type Client = H2<B>;
 
-    async fn handshake(self, se: Session<I>) -> Result<(Self::Client, impl Task), Error> {
+    async fn handshake(
+        self,
+        se: Session<I>,
+    ) -> Result<(Self::Client, impl Future<Output = ()>), Error> {
         let Session { addr, io } = se;
         let io = Io::new(io);
         let (send, conn) = self.build.handshake(io).await?;
