@@ -787,7 +787,7 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize, Error>> {
-        let me = self.project();
+        let mut me = self.project();
 
         if let State::End = me.state {
             return Poll::Ready(Ok(0));
@@ -798,22 +798,21 @@ where
         }
 
         if !me.state.has_remaining() {
-            match me.body.poll_chunk(cx) {
-                Poll::Ready(Some(Ok(c))) => {
-                    if c.has_remaining() {
-                        *me.state = State::Next(c);
-                    } else {
-                        // if next bytes is empty skip this iteration and reschedule
-                        cx.waker().wake_by_ref();
-                        return Poll::Pending;
+            loop {
+                match me.body.as_mut().poll_chunk(cx) {
+                    Poll::Ready(Some(Ok(c))) => {
+                        if c.has_remaining() {
+                            *me.state = State::Next(c);
+                            break;
+                        }
                     }
+                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
+                    Poll::Ready(None) => {
+                        *me.state = State::End;
+                        return Poll::Ready(Ok(0));
+                    }
+                    Poll::Pending => return Poll::Pending,
                 }
-                Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
-                Poll::Ready(None) => {
-                    *me.state = State::End;
-                    return Poll::Ready(Ok(0));
-                }
-                Poll::Pending => return Poll::Pending,
             }
         }
 
@@ -987,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn reader_partial() {
+    fn read_partial() {
         let src = ["h", "e", "ll", "o"].map(str::as_bytes).map(Ok);
         let body = Chunked(stream::iter(src));
         let mut reader = pin::pin!(body.read());
