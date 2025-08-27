@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 areq-smol = { workspace = true, features = ["http1", "tls"] }
 async-executor.workspace = true
-futures-lite.workspace = true
+smol.workspace = true
 
 [lints]
 workspace = true

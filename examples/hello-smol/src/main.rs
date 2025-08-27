@@ -51,7 +51,7 @@ fn main() {
 
     let mode = std::env::args().nth(1);
     let mode = mode.as_deref().unwrap_or("get");
-    match futures_lite::future::block_on(run(mode)) {
+    match smol::future::block_on(run(mode)) {
         Ok(text) => println!("{text}"),
         Err(e) => eprintln!("error: {e}"),
     }
