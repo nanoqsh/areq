@@ -34,6 +34,8 @@ async fn get() -> Result<String, Error> {
     tokio::spawn(conn);
 
     // perform GET request to the specified path "/hello"
-    client.get(uri, ()).await?.text().await
+    let mut s = String::new();
+    client.get(uri, ()).await?.read_to_string(&mut s).await?;
+    Ok(s)
 }
 ```

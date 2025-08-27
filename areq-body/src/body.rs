@@ -618,10 +618,10 @@ pub trait BodyExt: IntoBody {
     }
 
     #[inline]
-    async fn text(self) -> Result<String, Error> {
+    async fn read_to_string(self, s: &mut String) -> Result<(), Error> {
         let mut body = self.into_body();
         let cap = body.size_hint().size().unwrap_or(1024);
-        let mut s = String::with_capacity(cap as usize);
+        s.reserve(cap as usize);
         while let Some(res) = body.chunk().await {
             match str::from_utf8(res?.chunk()) {
                 Ok(chunk) => s.push_str(chunk),
@@ -634,7 +634,7 @@ pub trait BodyExt: IntoBody {
             }
         }
 
-        Ok(s)
+        Ok(())
     }
 
     #[inline]
@@ -950,10 +950,11 @@ mod tests {
     }
 
     #[test]
-    fn text() {
+    fn read_to_string() {
         let src = ["he", "ll", "o"].map(str::as_bytes).map(Ok);
         let body = Chunked(stream::iter(src));
-        let text = future::block_on(body.text()).expect("read body text");
+        let mut text = String::new();
+        future::block_on(body.read_to_string(&mut text)).expect("read body text");
         assert_eq!(text, "hello");
     }
 

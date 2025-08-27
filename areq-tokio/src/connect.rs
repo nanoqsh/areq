@@ -32,7 +32,9 @@ use {
 ///
 ///     // Now you can work with the client
 ///     // The background task will complete once the client is dropped
-///     client.get(uri, ()).await?.text().await
+///     let mut s = String::new();
+///     client.get(uri, ()).await?.read_to_string(&mut s).await?;
+///     Ok(s)
 /// }
 /// ```
 pub trait Connect<A, B>: HandshakeWith<Io<TcpStream>, B> {

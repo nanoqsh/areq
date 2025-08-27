@@ -35,7 +35,9 @@ use {
 ///
 ///     // Now you can work with the client
 ///     // The background task will complete once the client is dropped
-///     client.get(uri, ()).await?.text().await
+///     let mut s = String::new();
+///     client.get(uri, ()).await?.read_to_string(&mut s).await?;
+///     Ok(s)
 /// }
 /// ```
 ///
@@ -52,11 +54,14 @@ use {
 /// async fn get() -> Result<String, Error> {
 ///     let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 ///
+///     let mut s = String::new();
 ///     Http1::default()
 ///         .connect(&uri)
 ///         .await?
-///         .handle(async |mut client| client.get(uri, ()).await?.text().await)
-///         .await
+///         .handle(async |mut client| client.get(uri, ()).await?.read_to_string(&mut s).await)
+///         .await?;
+///
+///     Ok(s)
 /// }
 /// ```
 pub trait Connect<A, B>: HandshakeWith<TcpStream, B> {
