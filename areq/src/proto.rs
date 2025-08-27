@@ -103,10 +103,7 @@ pub struct Request<B = Boxed<'static>> {
 }
 
 impl<B> Request<B> {
-    pub fn new<U>(method: Method, uri: U, body: B) -> Self
-    where
-        U: Into<Uri>,
-    {
+    pub fn new(method: Method, uri: Uri, body: B) -> Self {
         let (mut head, body) = http::Request::new(body).into_parts();
         head.method = method;
         head.uri = uri.into();

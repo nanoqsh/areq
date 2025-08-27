@@ -1,6 +1,6 @@
 use {
     crate::proto::{Error, Request, Response},
-    areq_body::{Body, Boxed},
+    areq_body::Body,
     bytes::Bytes,
     http::{Method, Uri},
 };
@@ -11,149 +11,52 @@ pub trait Client<B> {
     async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
 }
 
-pub trait ClientExt<'body>: Client<Boxed<'body>> {
-    async fn get<U>(&mut self, uri: U) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
-
-    async fn head<U>(&mut self, uri: U) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
-
-    async fn post<U>(&mut self, uri: U, body: Boxed<'body>) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
-
-    async fn put<U>(&mut self, uri: U, body: Boxed<'body>) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
-
-    async fn delete<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
-
-    async fn options<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
-
-    async fn patch<U>(&mut self, uri: U, body: Boxed<'body>) -> Result<Response<Self::Body>, Error>
-    where
-        U: Into<Uri>;
+pub trait ClientExt<B>: Client<B> {
+    async fn get(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn head(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn post(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn put(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn delete(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn options(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn patch(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
 }
 
-impl<'body, C> ClientExt<'body> for C
+impl<C, B> ClientExt<B> for C
 where
-    C: Client<Boxed<'body>>,
+    C: Client<B>,
 {
-    fn get<U>(&mut self, uri: U) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
-        let req = Request::new(Method::GET, uri, Boxed::default());
-        self.send(req)
+    async fn get(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+        let req = Request::new(Method::GET, uri, body);
+        self.send(req).await
     }
 
-    fn head<U>(&mut self, uri: U) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
-        let req = Request::new(Method::HEAD, uri, Boxed::default());
-        self.send(req)
+    async fn head(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+        let req = Request::new(Method::HEAD, uri, body);
+        self.send(req).await
     }
 
-    fn post<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
+    async fn post(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
         let req = Request::new(Method::POST, uri, body);
-        self.send(req)
+        self.send(req).await
     }
 
-    fn put<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
+    async fn put(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
         let req = Request::new(Method::PUT, uri, body);
-        self.send(req)
+        self.send(req).await
     }
 
-    fn delete<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
+    async fn delete(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
         let req = Request::new(Method::DELETE, uri, body);
-        self.send(req)
+        self.send(req).await
     }
 
-    fn options<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
+    async fn options(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
         let req = Request::new(Method::OPTIONS, uri, body);
-        self.send(req)
+        self.send(req).await
     }
 
-    fn patch<U>(
-        &mut self,
-        uri: U,
-        body: Boxed<'body>,
-    ) -> impl Future<Output = Result<Response<Self::Body>, Error>>
-    where
-        U: Into<Uri>,
-    {
+    async fn patch(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
         let req = Request::new(Method::PATCH, uri, body);
-        self.send(req)
+        self.send(req).await
     }
-}
-
-/// Asserts the client extension futures are `Send` despite a uri type is'nt `Send`.
-#[cfg(feature = "rtn")]
-fn _client_ext_futures_send<U>(uri: U)
-where
-    U: Into<Uri>,
-{
-    fn assert_send<S>(s: S) -> S
-    where
-        S: Send,
-    {
-        s
-    }
-
-    struct Mock;
-
-    impl<B> Client<B> for Mock {
-        type Body = Bytes;
-
-        async fn send(&mut self, _: Request<B>) -> Result<Response<Self::Body>, Error> {
-            unreachable!()
-        }
-    }
-
-    // The client must be `Send`
-    let mut client = assert_send(Mock);
-    _ = assert_send(client.post(uri, Boxed::default()));
 }

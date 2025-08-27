@@ -46,12 +46,11 @@ use {
 };
 
 async fn get() -> Result<String, Error> {
-    let addr = Uri::from_static("http://127.0.0.1:3001");
-    let (mut client, conn) = Http1::default().connect(addr).await?;
+    let uri = Uri::from_static("http://127.0.0.1:3001/hello");
+    let (mut client, conn) = Http1::default().connect(&uri).await?;
     tokio::spawn(conn);
 
-    let path = Uri::from_static("/hello");
-    client.get(path).await?.text().await
+    client.get(uri, ()).await?.text().await
 }
 
 fn main() {

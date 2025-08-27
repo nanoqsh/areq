@@ -35,7 +35,7 @@ use {
 ///
 ///     // Now you can work with the client
 ///     // The background task will complete once the client is dropped
-///     client.get(uri).await?.text().await
+///     client.get(uri, ()).await?.text().await
 /// }
 /// ```
 ///
@@ -55,7 +55,7 @@ use {
 ///     Http1::default()
 ///         .connect(&uri)
 ///         .await?
-///         .handle(async |mut client| client.get(uri).await?.text().await)
+///         .handle(async |mut client| client.get(uri, ()).await?.text().await)
 ///         .await
 /// }
 /// ```

@@ -27,13 +27,13 @@ async fn get() -> Result<String, Error> {
     let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
     // establish connection to address "127.0.0.1:3001"
-    let (mut client, conn) = Http1::default().connect(uri.clone()).await?;
+    let (mut client, conn) = Http1::default().connect(&uri).await?;
 
     // tokio will handle the connection in the background
     // it will automatically terminate when client is dropped
     tokio::spawn(conn);
 
     // perform GET request to the specified path "/hello"
-    client.get(uri).await?.text().await
+    client.get(uri, ()).await?.text().await
 }
 ```

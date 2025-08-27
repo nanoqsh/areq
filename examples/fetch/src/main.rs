@@ -1,5 +1,5 @@
 use {
-    areq::{body::Boxed, http::Uri, prelude::*},
+    areq::{http::Uri, prelude::*},
     async_net::TcpStream,
     futures_lite::{future, prelude::*},
     std::{
@@ -56,7 +56,7 @@ async fn fetch(proto: &str, uri: Uri) -> Result<(), Error> {
 
 async fn get<H>(handshake: H, uri: Uri) -> Result<(), Error>
 where
-    H: Handshake<TcpStream, Boxed<'static>>,
+    H: Handshake<TcpStream, ()>,
 {
     use {
         areq::{Address, Session},
@@ -77,7 +77,7 @@ where
 
     let send_request = async move {
         // create new GET request with empty body
-        let res = client.get(uri).await?;
+        let res = client.get(uri, ()).await?;
 
         // print response head
         let version = res.version();

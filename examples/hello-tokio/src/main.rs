@@ -16,7 +16,7 @@ fn main() {
         tokio::spawn(conn);
 
         // perform GET request to the specified path "/hello"
-        client.get(uri).await?.text().await
+        client.get(uri, ()).await?.text().await
     }
 
     async fn get_tls() -> Result<String, Error> {
@@ -25,10 +25,10 @@ fn main() {
             "https://raw.githubusercontent.com/nanoqsh/areq/refs/heads/main/examples/hello-tokio/src/main.rs",
         );
 
-        let (mut client, conn) = Tls::new(Http1::default()).connect(uri.clone()).await?;
+        let (mut client, conn) = Tls::new(Http1::default()).connect(&uri).await?;
         tokio::spawn(conn);
 
-        client.get(uri).await?.text().await
+        client.get(uri, ()).await?.text().await
     }
 
     async fn run(mode: &str) -> Result<String, Error> {

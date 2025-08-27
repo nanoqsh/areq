@@ -11,7 +11,7 @@ fn main() {
         Http1::default()
             .connect(&uri)
             .await?
-            .handle(async |mut client| client.get(uri).await?.text().await)
+            .handle(async |mut client| client.get(uri, ()).await?.text().await)
             .await
     }
 
@@ -24,17 +24,17 @@ fn main() {
         Tls::new(Http1::default())
             .connect(&uri)
             .await?
-            .handle(async |mut client| client.get(uri).await?.text().await)
+            .handle(async |mut client| client.get(uri, ()).await?.text().await)
             .await
     }
 
-    async fn get_in_executor(ex: &Executor<'_>) -> Result<String, Error> {
+    async fn get_executor(ex: &Executor<'_>) -> Result<String, Error> {
         let uri = Uri::from_static("http://127.0.0.1:3001/hello");
 
         let (mut client, conn) = Http1::default().connect(&uri).await?;
         ex.spawn(conn).detach();
 
-        client.get(uri).await?.text().await
+        client.get(uri, ()).await?.text().await
     }
 
     async fn run(mode: &str) -> Result<String, Error> {
@@ -43,7 +43,7 @@ fn main() {
             "tls" => get_tls().await,
             "executor" => {
                 let ex = Executor::new();
-                ex.run(get_in_executor(&ex)).await
+                ex.run(get_executor(&ex)).await
             }
             unknown => Err(Error::other(format!("unknown mode {unknown}"))),
         }
