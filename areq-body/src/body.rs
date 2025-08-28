@@ -638,6 +638,18 @@ pub trait BodyExt: IntoBody {
     }
 
     #[inline]
+    async fn vec(self) -> Result<Vec<u8>, Error> {
+        let mut body = self.into_body();
+        let cap = body.size_hint().size().unwrap_or(1024);
+        let mut v = Vec::with_capacity(cap as usize);
+        while let Some(res) = body.chunk().await {
+            v.extend_from_slice(res?.chunk());
+        }
+
+        Ok(v)
+    }
+
+    #[inline]
     async fn bytes(self) -> Result<Bytes, Error>
     where
         Self::Chunk: Into<Bytes>,
@@ -882,7 +894,7 @@ mod tests {
     use {
         super::*,
         futures_lite::{future, stream},
-        std::{io::ErrorKind, pin},
+        std::{io::ErrorKind, pin, slice},
     };
 
     #[test]
@@ -955,6 +967,14 @@ mod tests {
         let body = Chunked(stream::iter(src));
         let text = future::block_on(body.text()).expect("read body text");
         assert_eq!(text, "hello");
+    }
+
+    #[test]
+    fn vec() {
+        let src = [1, 2, 3, 4].each_ref().map(slice::from_ref).map(Ok);
+        let body = Chunked(stream::iter(src));
+        let vec = future::block_on(body.vec()).expect("read body text");
+        assert_eq!(vec, [1, 2, 3, 4]);
     }
 
     #[test]

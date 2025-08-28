@@ -110,43 +110,6 @@ impl<B> Request<B> {
         Self { head, body }
     }
 
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(crate) fn version_mut(&mut self) -> &mut Version {
-        &mut self.head.version
-    }
-
-    pub fn method(&self) -> &Method {
-        &self.head.method
-    }
-
-    pub fn method_mut(&mut self) -> &mut Method {
-        &mut self.head.method
-    }
-
-    pub fn uri(&self) -> &Uri {
-        &self.head.uri
-    }
-
-    pub fn headers(&self) -> &HeaderMap {
-        &self.head.headers
-    }
-
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head.headers
-    }
-
-    pub fn map<F, C>(self, f: F) -> Request<C>
-    where
-        F: FnOnce(B) -> C,
-    {
-        Request {
-            head: self.head,
-            body: f(self.body),
-        }
-    }
-}
-
-impl<B> Request<B> {
     pub fn get(uri: Uri, body: B) -> Self {
         Self::new(Method::GET, uri, body)
     }
@@ -173,6 +136,41 @@ impl<B> Request<B> {
 
     pub fn patch(uri: Uri, body: B) -> Self {
         Self::new(Method::PATCH, uri, body)
+    }
+
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    pub(crate) fn version_mut(&mut self) -> &mut Version {
+        &mut self.head.version
+    }
+
+    pub fn method(&self) -> &Method {
+        &self.head.method
+    }
+
+    pub fn method_mut(&mut self) -> &mut Method {
+        &mut self.head.method
+    }
+
+    pub fn uri(&self) -> &Uri {
+        &self.head.uri
+    }
+
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head.headers
+    }
+
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head.headers
+    }
+
+    pub fn map_body<F, C>(self, f: F) -> Request<C>
+    where
+        F: FnOnce(B) -> C,
+    {
+        Request {
+            head: self.head,
+            body: f(self.body),
+        }
     }
 }
 

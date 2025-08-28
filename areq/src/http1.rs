@@ -91,7 +91,7 @@ where
 
     async fn send(&mut self, mut req: Request<B>) -> Result<Response<Self::Body>, Error> {
         self.prepare(&mut req);
-        let req = req.map(B::into_body).into();
+        let req = req.map_body(B::into_body).into();
         let res = self.reqs.send(req).await?;
         Ok(Response::new(res))
     }
