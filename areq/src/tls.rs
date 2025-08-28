@@ -23,22 +23,52 @@ pub struct Tls<N> {
 impl<N> Tls<N> {
     #[cfg(feature = "webpki-roots")]
     #[cfg_attr(docsrs, doc(cfg(feature = "webpki-roots")))]
-    pub fn with_webpki_roots(inner: N) -> Self {
-        use std::sync::LazyLock;
+    pub fn with_webpki_roots(inner: N) -> Self
+    where
+        N: Negotiate + 'static,
+    {
+        use std::{
+            any::{Any, TypeId},
+            collections::BTreeMap,
+            sync::Mutex,
+        };
 
-        static CONF: LazyLock<Arc<ClientConfig>> = LazyLock::new(|| {
-            let root = RootCertStore {
-                roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-            };
+        struct Configs(Mutex<BTreeMap<TypeId, Arc<ClientConfig>>>);
 
-            let conf = ClientConfig::builder()
-                .with_root_certificates(root)
-                .with_no_client_auth();
+        impl Configs {
+            const fn new() -> Self {
+                Self(Mutex::new(BTreeMap::new()))
+            }
 
-            Arc::new(conf)
-        });
+            fn get<N>(&self, inner: &N) -> Arc<ClientConfig>
+            where
+                N: Negotiate + 'static,
+            {
+                let init = || {
+                    let root = RootCertStore {
+                        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+                    };
 
-        let connector = TlsConnector::from(CONF.clone());
+                    let mut conf = ClientConfig::builder()
+                        .with_root_certificates(root)
+                        .with_no_client_auth();
+
+                    conf.alpn_protocols.extend(inner.support().map(Vec::from));
+                    Arc::new(conf)
+                };
+
+                self.0
+                    .lock()
+                    .expect("lock configs")
+                    .entry(inner.type_id())
+                    .or_insert_with(init)
+                    .clone()
+            }
+        }
+
+        static CONFS: Configs = Configs::new();
+
+        let connector = TlsConnector::from(CONFS.get(&inner));
         Self::with_connector(inner, connector)
     }
 
@@ -46,7 +76,7 @@ impl<N> Tls<N> {
     where
         N: Negotiate,
     {
-        let conf = read_tls_config(cert, inner.support())?;
+        let conf = read_tls_config(cert, &inner)?;
         let connector = TlsConnector::from(Arc::new(conf));
         Ok(Self::with_connector(inner, connector))
     }
@@ -100,9 +130,9 @@ fn as_server_name(host: &Host) -> Result<ServerName<'_>, Error> {
     }
 }
 
-fn read_tls_config<P>(mut cert: &[u8], protos: P) -> Result<ClientConfig, io::Error>
+fn read_tls_config<N>(mut cert: &[u8], inner: &N) -> Result<ClientConfig, io::Error>
 where
-    P: Iterator<Item = &'static [u8]>,
+    N: Negotiate,
 {
     let mut root = RootCertStore::empty();
     for cert in rustls_pemfile::certs(&mut cert) {
@@ -113,7 +143,6 @@ where
         .with_root_certificates(root)
         .with_no_client_auth();
 
-    conf.alpn_protocols.extend(protos.map(Vec::from));
-
+    conf.alpn_protocols.extend(inner.support().map(Vec::from));
     Ok(conf)
 }
