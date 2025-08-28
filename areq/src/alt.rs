@@ -98,6 +98,13 @@ where
             Self::Rhs { r } => Ok(r.send(req).await?.map(Alt::rhs)),
         }
     }
+
+    fn try_clone(&self) -> Option<Self> {
+        match self {
+            Self::Lhs { l } => l.try_clone().map(Alt::lhs),
+            Self::Rhs { r } => r.try_clone().map(Alt::rhs),
+        }
+    }
 }
 
 impl<L, R> Future for Alt<L, R>

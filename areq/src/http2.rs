@@ -160,6 +160,10 @@ where
         let res = resfu.await?.map(BodyH2);
         Ok(Response::new(res))
     }
+
+    fn try_clone(&self) -> Option<Self> {
+        Some(self.clone())
+    }
 }
 
 enum Flow<B> {

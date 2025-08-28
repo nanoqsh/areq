@@ -9,6 +9,13 @@ pub trait Client<B> {
     type Body: Body<Chunk = Bytes>;
 
     async fn send(&mut self, req: Request<B>) -> Result<Response<Self::Body>, Error>;
+
+    fn try_clone(&self) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }
 
 pub trait ClientExt<B>: Client<B> {
