@@ -4,7 +4,7 @@ use {
     std::{
         convert::Infallible,
         future,
-        io::{Error, ErrorKind},
+        io::{Cursor, Error, ErrorKind},
         marker::PhantomData,
         mem,
         ops::DerefMut,
@@ -191,6 +191,48 @@ impl<'str> Body for &'str str {
         } else {
             let s = mem::take(self);
             Some(Ok(s.as_bytes()))
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: Some(self.len() as u64),
+        }
+    }
+}
+
+impl Body for String {
+    type Chunk = Cursor<Self>;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        if self.is_empty() {
+            None
+        } else {
+            let s = mem::take(self);
+            Some(Ok(Cursor::new(s)))
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> Hint {
+        Hint::Full {
+            len: Some(self.len() as u64),
+        }
+    }
+}
+
+impl Body for Vec<u8> {
+    type Chunk = Cursor<Self>;
+
+    #[inline]
+    async fn chunk(&mut self) -> Option<Result<Self::Chunk, Error>> {
+        if self.is_empty() {
+            None
+        } else {
+            let s = mem::take(self);
+            Some(Ok(Cursor::new(s)))
         }
     }
 
