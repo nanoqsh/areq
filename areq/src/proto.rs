@@ -146,6 +146,36 @@ impl<B> Request<B> {
     }
 }
 
+impl<B> Request<B> {
+    pub fn get(uri: Uri, body: B) -> Self {
+        Self::new(Method::GET, uri, body)
+    }
+
+    pub fn head(uri: Uri, body: B) -> Self {
+        Self::new(Method::HEAD, uri, body)
+    }
+
+    pub fn post(uri: Uri, body: B) -> Self {
+        Self::new(Method::POST, uri, body)
+    }
+
+    pub fn put(uri: Uri, body: B) -> Self {
+        Self::new(Method::PUT, uri, body)
+    }
+
+    pub fn delete(uri: Uri, body: B) -> Self {
+        Self::new(Method::DELETE, uri, body)
+    }
+
+    pub fn options(uri: Uri, body: B) -> Self {
+        Self::new(Method::OPTIONS, uri, body)
+    }
+
+    pub fn patch(uri: Uri, body: B) -> Self {
+        Self::new(Method::PATCH, uri, body)
+    }
+}
+
 impl<B> From<Request<B>> for http::Request<B> {
     fn from(Request { head, body }: Request<B>) -> Self {
         Self::from_parts(head, body)

@@ -2,7 +2,7 @@ use {
     crate::proto::{Error, Request, Response},
     areq_body::Body,
     bytes::Bytes,
-    http::{Method, Uri},
+    http::Uri,
 };
 
 pub trait Client<B> {
@@ -33,37 +33,30 @@ where
     C: Client<B>,
 {
     async fn get(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::GET, uri, body);
-        self.send(req).await
+        self.send(Request::get(uri, body)).await
     }
 
     async fn head(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::HEAD, uri, body);
-        self.send(req).await
+        self.send(Request::head(uri, body)).await
     }
 
     async fn post(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::POST, uri, body);
-        self.send(req).await
+        self.send(Request::post(uri, body)).await
     }
 
     async fn put(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::PUT, uri, body);
-        self.send(req).await
+        self.send(Request::put(uri, body)).await
     }
 
     async fn delete(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::DELETE, uri, body);
-        self.send(req).await
+        self.send(Request::delete(uri, body)).await
     }
 
     async fn options(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::OPTIONS, uri, body);
-        self.send(req).await
+        self.send(Request::options(uri, body)).await
     }
 
     async fn patch(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
-        let req = Request::new(Method::PATCH, uri, body);
-        self.send(req).await
+        self.send(Request::patch(uri, body)).await
     }
 }
