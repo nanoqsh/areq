@@ -101,8 +101,8 @@ where
 
     fn try_clone(&self) -> Option<Self> {
         match self {
-            Self::Lhs { l } => l.try_clone().map(Alt::lhs),
-            Self::Rhs { r } => r.try_clone().map(Alt::rhs),
+            Self::Lhs { l } => l.try_clone().map(Self::lhs),
+            Self::Rhs { r } => r.try_clone().map(Self::rhs),
         }
     }
 }

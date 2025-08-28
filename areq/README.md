@@ -50,9 +50,7 @@ async fn get() -> Result<String, Error> {
     let (mut client, conn) = Http1::default().connect(&uri).await?;
     tokio::spawn(conn);
 
-    let mut s = String::new();
-    client.get(uri, ()).await?.read_to_string(&mut s).await?;
-    Ok(s)
+    client.get(uri, ()).await?.text().await
 }
 
 fn main() {

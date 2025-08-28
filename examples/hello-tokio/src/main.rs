@@ -16,9 +16,7 @@ fn main() {
         tokio::spawn(conn);
 
         // perform GET request to the specified path "/hello"
-        let mut s = String::new();
-        client.get(uri, ()).await?.read_to_string(&mut s).await?;
-        Ok(s)
+        client.get(uri, ()).await?.text().await
     }
 
     async fn get_tls() -> Result<String, Error> {
@@ -33,9 +31,7 @@ fn main() {
 
         tokio::spawn(conn);
 
-        let mut s = String::new();
-        client.get(uri, ()).await?.read_to_string(&mut s).await?;
-        Ok(s)
+        client.get(uri, ()).await?.text().await
     }
 
     async fn run(mode: &str) -> Result<String, Error> {
