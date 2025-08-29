@@ -23,39 +23,6 @@ pub trait Client<B> {
 pub trait ClientExt<B>: Client<B> {
     async fn get<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
     where
-        I: IntoRequestBody<Body = B>;
-
-    async fn head<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
-        I: IntoRequestBody<Body = B>;
-
-    async fn post<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
-        I: IntoRequestBody<Body = B>;
-
-    async fn put<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
-        I: IntoRequestBody<Body = B>;
-
-    async fn delete<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
-        I: IntoRequestBody<Body = B>;
-
-    async fn options<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
-        I: IntoRequestBody<Body = B>;
-
-    async fn patch<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
-        I: IntoRequestBody<Body = B>;
-}
-
-impl<C, B> ClientExt<B> for C
-where
-    C: Client<B>,
-{
-    async fn get<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
-    where
         I: IntoRequestBody<Body = B>,
     {
         self.send(Request::get(uri, body)).await
@@ -103,3 +70,5 @@ where
         self.send(Request::patch(uri, body)).await
     }
 }
+
+impl<C, B> ClientExt<B> for C where C: Client<B> {}

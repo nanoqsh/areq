@@ -21,12 +21,21 @@ where
     async fn handle(self, f: F) -> Result<U, Error> {
         let (mut client, conn) = self;
 
-        let io = async {
+        let io_fut = async {
             conn.await;
             Ok(())
         };
 
-        let (_, res) = Box::pin(future::try_zip(io, f(&mut client))) // box large futures
+        let client_fut = async move {
+            let res = f(&mut client).await;
+
+            // drop client to finish io future
+            drop(client);
+
+            res
+        };
+
+        let ((), res) = Box::pin(future::try_zip(io_fut, client_fut)) // box large futures
             .await?;
 
         Ok(res)
