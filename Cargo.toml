@@ -3,7 +3,7 @@ resolver = "3"
 members = ["areq", "areq-*", "examples/*", "serve"]
 
 [workspace.package]
-version = "0.1.0-alpha4"
+version = "0.1.0-alpha5"
 edition = "2024"
 license = "MIT"
 authors = ["nanoqsh"]
@@ -18,12 +18,12 @@ repository = "https://github.com/nanoqsh/areq"
 rust-version = "1.87"
 
 [workspace.dependencies]
-areq = { version = "=0.1.0-alpha4", path = "areq" }
-areq-body = { version = "=0.1.0-alpha4", path = "areq-body" }
-areq-h1 = { version = "=0.1.0-alpha4", path = "areq-h1" }
-areq-json = { version = "=0.1.0-alpha4", path = "areq-json" }
-areq-smol = { version = "=0.1.0-alpha4", path = "areq-smol" }
-areq-tokio = { version = "=0.1.0-alpha4", path = "areq-tokio" }
+areq = { version = "=0.1.0-alpha5", path = "areq" }
+areq-body = { version = "=0.1.0-alpha5", path = "areq-body" }
+areq-h1 = { version = "=0.1.0-alpha5", path = "areq-h1" }
+areq-json = { version = "=0.1.0-alpha5", path = "areq-json" }
+areq-smol = { version = "=0.1.0-alpha5", path = "areq-smol" }
+areq-tokio = { version = "=0.1.0-alpha5", path = "areq-tokio" }
 async-channel = "2.3"
 async-executor = "1.13"
 async-net = "2.0"
