@@ -1,0 +1,22 @@
+[package]
+name = "areq-json"
+description = "Extension of the areq crate for working with JSON"
+documentation = "https://docs.rs/areq-json"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+areq.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

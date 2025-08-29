@@ -1,10 +1,20 @@
-
-Async HTTP requests for [tokio] runtime.
-
-This crate is a part of [areq] library, the runtime-agnostic HTTP requests. If you want your code to run in [tokio] runtime, this crate is the right choice.
-
-[tokio]: https://docs.rs/tokio
-[areq]: https://docs.rs/areq
+<div align="center">
+    <h1>areq-tokio</h1>
+    <p>
+        Async HTTP requests for the
+        <a href="https://crates.io/crates/tokio">tokio</a>
+        runtime
+    </p>
+    <p>
+        This crate is a part of
+        <a href="https://crates.io/crates/areq">areq</a>
+        library, the runtime-agnostic HTTP requests
+    </p>
+    <p>
+        <a href="https://crates.io/crates/areq-tokio"><img src="https://img.shields.io/crates/v/areq-tokio.svg"></img></a>
+        <a href="https://docs.rs/areq-tokio"><img src="https://docs.rs/areq-tokio/badge.svg"></img></a>
+    </p>
+</div>
 
 # Getting Started
 
