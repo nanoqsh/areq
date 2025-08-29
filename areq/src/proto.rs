@@ -1,7 +1,7 @@
 use {
     crate::{
         addr::Address,
-        body::{Boxed, prelude::*},
+        body::{Boxed, IntoRequestBody, prelude::*},
         client::Client,
     },
     futures_lite::prelude::*,
@@ -110,32 +110,67 @@ impl<B> Request<B> {
         Self { head, body }
     }
 
-    pub fn get(uri: Uri, body: B) -> Self {
-        Self::new(Method::GET, uri, body)
+    pub fn get<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::GET, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
-    pub fn head(uri: Uri, body: B) -> Self {
-        Self::new(Method::HEAD, uri, body)
+    pub fn head<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::HEAD, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
-    pub fn post(uri: Uri, body: B) -> Self {
-        Self::new(Method::POST, uri, body)
+    pub fn post<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::POST, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
-    pub fn put(uri: Uri, body: B) -> Self {
-        Self::new(Method::PUT, uri, body)
+    pub fn put<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::PUT, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
-    pub fn delete(uri: Uri, body: B) -> Self {
-        Self::new(Method::DELETE, uri, body)
+    pub fn delete<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::DELETE, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
-    pub fn options(uri: Uri, body: B) -> Self {
-        Self::new(Method::OPTIONS, uri, body)
+    pub fn options<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::OPTIONS, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
-    pub fn patch(uri: Uri, body: B) -> Self {
-        Self::new(Method::PATCH, uri, body)
+    pub fn patch<I>(uri: Uri, body: I) -> Self
+    where
+        I: IntoRequestBody<Body = B>,
+    {
+        let mut req = Self::new(Method::PATCH, uri, body.into_req_body());
+        I::upd_req(&mut req);
+        req
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]

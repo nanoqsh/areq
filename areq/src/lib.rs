@@ -5,6 +5,7 @@
 
 mod addr;
 mod alt;
+pub mod body;
 mod client;
 #[cfg(feature = "http1")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
@@ -30,11 +31,6 @@ pub mod prelude {
         crate::{Client, ClientExt as _, Handshake},
         areq_body::prelude::*,
     };
-}
-
-/// Body types and traits.
-pub mod body {
-    pub use areq_body::*;
 }
 
 pub use {

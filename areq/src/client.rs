@@ -1,6 +1,8 @@
 use {
-    crate::proto::{Error, Request, Response},
-    areq_body::Body,
+    crate::{
+        body::{Body, IntoRequestBody},
+        proto::{Error, Request, Response},
+    },
     bytes::Bytes,
     http::Uri,
 };
@@ -19,44 +21,85 @@ pub trait Client<B> {
 }
 
 pub trait ClientExt<B>: Client<B> {
-    async fn get(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
-    async fn head(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
-    async fn post(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
-    async fn put(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
-    async fn delete(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
-    async fn options(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
-    async fn patch(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error>;
+    async fn get<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
+
+    async fn head<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
+
+    async fn post<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
+
+    async fn put<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
+
+    async fn delete<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
+
+    async fn options<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
+
+    async fn patch<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>;
 }
 
 impl<C, B> ClientExt<B> for C
 where
     C: Client<B>,
 {
-    async fn get(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn get<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::get(uri, body)).await
     }
 
-    async fn head(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn head<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::head(uri, body)).await
     }
 
-    async fn post(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn post<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::post(uri, body)).await
     }
 
-    async fn put(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn put<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::put(uri, body)).await
     }
 
-    async fn delete(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn delete<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::delete(uri, body)).await
     }
 
-    async fn options(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn options<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::options(uri, body)).await
     }
 
-    async fn patch(&mut self, uri: Uri, body: B) -> Result<Response<Self::Body>, Error> {
+    async fn patch<I>(&mut self, uri: Uri, body: I) -> Result<Response<Self::Body>, Error>
+    where
+        I: IntoRequestBody<Body = B>,
+    {
         self.send(Request::patch(uri, body)).await
     }
 }
