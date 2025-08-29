@@ -11,7 +11,7 @@ fn main() {
         Http1::default()
             .connect(&uri)
             .await?
-            .handle(async |mut client| client.get(uri, ()).await?.text().await)
+            .handle(async |client| client.get(uri, ()).await?.text().await)
             .await
     }
 
@@ -24,7 +24,7 @@ fn main() {
         Tls::with_webpki_roots(Http1::default())
             .connect(&uri)
             .await?
-            .handle(async |mut client| client.get(uri, ()).await?.text().await)
+            .handle(async |client| client.get(uri, ()).await?.text().await)
             .await
     }
 

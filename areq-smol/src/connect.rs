@@ -55,7 +55,7 @@ use {
 ///     Http1::default()
 ///         .connect(&uri)
 ///         .await?
-///         .handle(async |mut client| client.get(uri, ()).await?.text().await)
+///         .handle(async |client| client.get(uri, ()).await?.text().await)
 ///         .await
 /// }
 /// ```

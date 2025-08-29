@@ -7,26 +7,26 @@ use {
 pub trait Handle<C, U, F>
 where
     // Add more context for better DX with rust analyzer
-    F: AsyncFnOnce(C) -> Result<U, Error>,
+    F: AsyncFnOnce(&mut C) -> Result<U, Error>,
 {
     async fn handle(self, f: F) -> Result<U, Error>;
 }
 
 impl<C, U, F, N> Handle<C, U, F> for (C, N)
 where
-    F: AsyncFnOnce(C) -> Result<U, Error>,
+    F: AsyncFnOnce(&mut C) -> Result<U, Error>,
     N: Future,
 {
     #[inline]
     async fn handle(self, f: F) -> Result<U, Error> {
-        let (client, conn) = self;
+        let (mut client, conn) = self;
 
         let io = async {
             conn.await;
             Ok(())
         };
 
-        let (_, res) = Box::pin(future::try_zip(io, f(client))) // box large futures
+        let (_, res) = Box::pin(future::try_zip(io, f(&mut client))) // box large futures
             .await?;
 
         Ok(res)
@@ -49,7 +49,7 @@ where
         let p = h.handshake(se).await.expect("comptime assertion");
 
         // Also the callback must be `Send`
-        let callback = assert_send(async |_| Ok(()));
+        let callback = assert_send(async |_: &mut _| Ok(()));
 
         _ = assert_send(p.handle(callback));
     };
